@@ -9,7 +9,7 @@
  *
  * Usage:
  *   pnpm tsx tools/aiq-import-csv.ts --tenant <slug> --pack-name "<name>" [--domain aptitude]
- *       [--commit] [--publish] [--seed-frameworks <code[,code...]>] <file.csv> [<file2.csv> ...]
+ *       [--commit] [--publish] [--verify-all] [--seed-frameworks <code[,code...]>] <file.csv> [<file2.csv> ...]
  *
  * --seed-frameworks (needs --commit; a dry run only prints the codes) loads the named bundled
  * framework seeds through loadFrameworkSeed (idempotent upsert, one audit row) BEFORE the first
@@ -24,6 +24,11 @@
  * later files and later runs). Rows whose seed_ref already exists in the tenant are decided
  * 'duplicate' by stageImport (one set-based query) and skipped, so a re-run is idempotent.
  * --publish (needs --commit) publishes the pack at the end through publishPack.
+ * --verify-all (needs --commit; else exit 5) runs bulkVerifyPack on the pack AFTER the commit and after
+ * --publish, so a load ends verified (publishAssessment refuses QUESTIONS_NOT_VERIFIED until then). Actor:
+ * the oldest active super_admin of the platform tenant, or admin of any other tenant (the review role rule);
+ * none found: exit 1 before any write. Writes one review audit row per question naming that actor.
+ * Idempotent: 0 in_review rows reports verified 0. Report key 'verified': { pack_id, verified, skipped }.
  *
  * Attribution: the oldest active admin or super_admin of the tenant (same rule as aiq-import-pack.ts).
  * BYPASSRLS use: the same two pre-tenant lookups as the pack tool (tenant slug, admin).
@@ -57,19 +62,21 @@ export interface Args {
   domain: string;
   commit: boolean;
   publish: boolean;
+  verifyAll: boolean;
   seedFrameworks: string[];
   files: string[];
 }
 
 export const USAGE =
-  'Usage: pnpm tsx tools/aiq-import-csv.ts --tenant <slug> --pack-name "<name>" [--domain aptitude] [--commit] [--publish] [--seed-frameworks <code[,code...]>] <file.csv> [<file2.csv> ...]';
+  'Usage: pnpm tsx tools/aiq-import-csv.ts --tenant <slug> --pack-name "<name>" [--domain aptitude] [--commit] [--publish] [--verify-all] [--seed-frameworks <code[,code...]>] <file.csv> [<file2.csv> ...]';
 
 export function parseArgs(argv: string[]): Args {
-  const a: Args = { tenant: "", packName: "", domain: "aptitude", commit: false, publish: false, seedFrameworks: [], files: [] };
+  const a: Args = { tenant: "", packName: "", domain: "aptitude", commit: false, publish: false, verifyAll: false, seedFrameworks: [], files: [] };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     if (arg === "--commit") a.commit = true;
     else if (arg === "--publish") a.publish = true;
+    else if (arg === "--verify-all") a.verifyAll = true;
     else if (arg === "--tenant" || arg === "--pack-name" || arg === "--domain" || arg === "--seed-frameworks") {
       const v = argv[++i];
       if (v === undefined || v.startsWith("--")) throw new CliError(5, `${arg} requires a value.\n${USAGE}`);
@@ -84,6 +91,7 @@ export function parseArgs(argv: string[]): Args {
   if (a.packName.trim() === "") throw new CliError(5, `--pack-name is required.\n${USAGE}`);
   if (a.files.length === 0) throw new CliError(5, `at least one CSV file is required.\n${USAGE}`);
   if (a.publish && !a.commit) throw new CliError(5, `--publish only works together with --commit.\n${USAGE}`);
+  if (a.verifyAll && !a.commit) throw new CliError(5, `--verify-all only works together with --commit.\n${USAGE}`);
   return a;
 }
 
@@ -108,6 +116,10 @@ export interface Deps {
   discard(tenantId: string, userId: string, importId: string): Promise<unknown>;
   findPack(tenantId: string, name: string): Promise<string | null>;
   publish(tenantId: string, packId: string, userId: string): Promise<unknown>;
+  /** Oldest active reviewer the review rule accepts: super_admin on the platform tenant, admin elsewhere. */
+  resolveReviewer(tenantId: string): Promise<{ userId: string; role: string } | null>;
+  /** bulkVerifyPack for the pack; skipped = items already past in_review (verified, needs fix, disputed). */
+  verifyPack(tenantId: string, packId: string, actor: { userId: string; role: string }): Promise<{ verified: number; skipped: number }>;
   /** Codes of the bundled framework seeds (listBundledSeeds). */
   listSeedCodes(): Promise<string[]>;
   /** loadFrameworkSeed: idempotent upsert of one global framework and its nodes. */
@@ -220,6 +232,7 @@ export interface CommitOut {
   files: Array<{ file: string; inserted: number; skipped_existing: number; errors: number; error_rows?: Array<{ row: number; column: string; message: string }> }>;
   total: { inserted: number; skipped_existing: number; errors: number };
   published: boolean;
+  verified: { pack_id: string; verified: number; skipped: number } | null;
 }
 
 export async function commitRun(args: Args, deps: Deps): Promise<{ report: CommitOut; exitCode: number }> {
@@ -228,8 +241,10 @@ export async function commitRun(args: Args, deps: Deps): Promise<{ report: Commi
   if (tenantId === null) throw new CliError(1, `Tenant not found: ${args.tenant}`);
   const adminId = await deps.resolveAdmin(tenantId);
   if (adminId === null) throw new CliError(1, `Tenant has no active admin, cannot attribute import (tenant: ${args.tenant})`);
+  const reviewer = args.verifyAll ? await deps.resolveReviewer(tenantId) : null;
+  if (args.verifyAll && reviewer === null) throw new CliError(1, `Tenant has no active reviewer (super_admin on the platform tenant, admin elsewhere), cannot --verify-all (tenant: ${args.tenant})`);
   await checkSeedCodes(args, deps);
-  const report: CommitOut = { mode: "commit", pack_id: null, seeded: [], files: [], total: { inserted: 0, skipped_existing: 0, errors: 0 }, published: false };
+  const report: CommitOut = { mode: "commit", pack_id: null, seeded: [], files: [], total: { inserted: 0, skipped_existing: 0, errors: 0 }, published: false, verified: null };
   let exitCode = 0;
   try {
     // Seeds first: the production DB only has the framework nodes it was last seeded with, so new nodes must exist before row validation.
@@ -285,6 +300,15 @@ export async function commitRun(args: Args, deps: Deps): Promise<{ report: Commi
         throw new CliError(3, `publish refused: ${ce.message}`);
       }
     }
+    if (reviewer !== null && exitCode === 0) {
+      if (report.pack_id === null) throw new CliError(3, "nothing to verify: the pack does not exist");
+      try {
+        report.verified = { pack_id: report.pack_id, ...(await deps.verifyPack(tenantId, report.pack_id, reviewer)) };
+      } catch (e) {
+        const ce = toCliError(e);
+        throw new CliError(ce.exitCode, `verify-all failed: ${ce.message}`);
+      }
+    }
   } catch (e) {
     const ce = toCliError(e);
     // Print what was done before the failure so a re-run knows where it stopped.
@@ -293,7 +317,7 @@ export async function commitRun(args: Args, deps: Deps): Promise<{ report: Commi
   }
   deps.err(
     `aiq-import-csv tenant=${args.tenant} pack="${args.packName}" pack_id=${report.pack_id ?? "-"} actor=${adminId} files=${files.length} ` +
-      `inserted=${report.total.inserted} skipped_existing=${report.total.skipped_existing} errors=${report.total.errors} published=${report.published}`,
+      `inserted=${report.total.inserted} skipped_existing=${report.total.skipped_existing} errors=${report.total.errors} published=${report.published} verified=${report.verified?.verified ?? "-"}`,
   );
   return { report, exitCode };
 }
@@ -309,6 +333,7 @@ async function realDeps(): Promise<{ deps: Deps; close: () => Promise<void> }> {
   const { stageImport, previewImport, discardImport } = await import("../modules/04-question-bank/src/import/staging.js");
   const { commitImport } = await import("../modules/04-question-bank/src/import/commit.js");
   const { publishPack } = await import("../modules/04-question-bank/src/service/packs.js");
+  const { bulkVerifyPack } = await import("../modules/04-question-bank/src/service/review.js");
   const { loadFrameworkSeed, listBundledSeeds } = await import("../modules/04-question-bank/src/framework-seeds.js");
   const one = async <T extends Record<string, unknown>>(sql: string, params: unknown[]): Promise<T | null> => {
     const c = new Client({ connectionString: config.SYSTEM_DATABASE_URL ?? config.DATABASE_URL }); // system role, BYPASSRLS (pre-tenant lookups only): in production DATABASE_URL is the RLS-bound app login (FUT-10), SYSTEM_DATABASE_URL is the BYPASSRLS login
@@ -340,6 +365,20 @@ async function realDeps(): Promise<{ deps: Deps; close: () => Promise<void> }> {
         return r.rows[0]?.id ?? null;
       }),
     publish: (t, id, u) => publishPack(t, id, u),
+    resolveReviewer: async (tenantId) => {
+      const r = await one<{ id: string; role: string }>(
+        `SELECT u.id, u.role FROM users u JOIN tenants t ON t.id = u.tenant_id WHERE u.tenant_id = $1 AND u.status = 'active' AND u.deleted_at IS NULL
+          AND u.role = CASE WHEN t.slug = 'platform' THEN 'super_admin' ELSE 'admin' END ORDER BY u.created_at ASC LIMIT 1`,
+        [tenantId],
+      );
+      return r === null ? null : { userId: r.id, role: r.role };
+    },
+    verifyPack: async (t, packId, actor) => {
+      const skipped = await withTenant(t, async (client) =>
+        Number((await client.query<{ n: string }>(`SELECT count(*) AS n FROM questions WHERE pack_id = $1 AND review_state <> 'in_review' AND status <> 'archived'`, [packId])).rows[0]?.n ?? 0));
+      const { verified } = await bulkVerifyPack({ tenantId: t, userId: actor.userId, role: actor.role }, packId, undefined);
+      return { verified, skipped };
+    },
     listSeedCodes: async () => (await listBundledSeeds()).map((s) => s.code),
     seedFramework: (u, code) => loadFrameworkSeed(u, code),
     err: (l) => void process.stderr.write(l + "\n"),

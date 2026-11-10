@@ -7,7 +7,7 @@ const csv = (...rows: string[]): Buffer => Buffer.from([HEAD, ...rows].join("\n"
 const ref = (n: number): string => `age.x@2:seed=${n}:gen=g1`;
 
 const args = (over: Partial<Args> = {}): Args => ({
-  tenant: "t1", packName: "P", domain: "aptitude", commit: false, publish: false, seedFrameworks: [], files: ["a.csv"], ...over,
+  tenant: "t1", packName: "P", domain: "aptitude", commit: false, publish: false, verifyAll: false, seedFrameworks: [], files: ["a.csv"], ...over,
 });
 
 /** Fake deps: preview marks a row as error when its topic cell is "BAD" (stand-in for the real validator). */
@@ -35,6 +35,8 @@ function fakes(files: Record<string, Buffer>, over: Partial<Deps> = {}): Deps & 
     discard: async () => { calls.push("discard"); },
     findPack: async () => (calls.includes("commit") ? "pk" : null),
     publish: async () => { calls.push("publish"); },
+    resolveReviewer: async () => ({ userId: "rev", role: "super_admin" }),
+    verifyPack: async (_t, packId, actor) => { calls.push(`verify:${packId}:${actor.userId}:${actor.role}`); return { verified: 1, skipped: 0 }; },
     listSeedCodes: async () => ["exam-structure", "cbse"],
     seedFramework: async (_u, code) => { calls.push(`seed:${code}`); return { frameworks: 1, nodesCreated: 2, nodesUpdated: 0, nodesUnchanged: 3 }; },
     err: () => undefined,
@@ -46,7 +48,7 @@ function fakes(files: Record<string, Buffer>, over: Partial<Deps> = {}): Deps & 
 describe("parseArgs", () => {
   it("accepts the full usage", () => {
     expect(parseArgs(["--tenant", "t", "--pack-name", "N", "--commit", "--publish", "a.csv", "b.csv"]))
-      .toEqual({ tenant: "t", packName: "N", domain: "aptitude", commit: true, publish: true, seedFrameworks: [], files: ["a.csv", "b.csv"] });
+      .toEqual({ tenant: "t", packName: "N", domain: "aptitude", commit: true, publish: true, verifyAll: false, seedFrameworks: [], files: ["a.csv", "b.csv"] });
   });
   it("parses --seed-frameworks as a comma list", () => {
     expect(parseArgs(["--tenant", "t", "--pack-name", "N", "--seed-frameworks", "exam-structure, cbse", "a.csv"]).seedFrameworks)
@@ -57,6 +59,7 @@ describe("parseArgs", () => {
     [["--tenant", "t", "a.csv"]],
     [["--tenant", "t", "--pack-name", "N"]],
     [["--tenant", "t", "--pack-name", "N", "--publish", "a.csv"]],
+    [["--tenant", "t", "--pack-name", "N", "--verify-all", "a.csv"]],
     [["--tenant", "t", "--pack-name", "N", "--nope", "a.csv"]],
     [["--tenant"]],
   ])("rejects %j with exit 5", (argv) => {
@@ -179,6 +182,31 @@ describe("commitRun", () => {
   it("a seed failure exits 5 and stages nothing", async () => {
     const d = fakes({ "a.csv": csv(`mcq,A,q1,${ref(1)}`) }, { seedFramework: async () => { throw new Error("boom"); } });
     await expect(commitRun(args({ commit: true, seedFrameworks: ["cbse"] }), d)).rejects.toMatchObject({ exitCode: 5 });
+    expect(d.calls).toEqual([]);
+  });
+
+  it("--verify-all runs bulkVerifyPack once after publish with the pack id and reviewer", async () => {
+    const d = fakes({ "a.csv": csv(`mcq,A,q1,${ref(1)}`) });
+    const { report, exitCode } = await commitRun(args({ commit: true, publish: true, verifyAll: true }), d);
+    expect(exitCode).toBe(0);
+    expect(d.calls).toEqual(["stage:a.csv:new", "commit", "publish", "verify:pk:rev:super_admin"]);
+    expect(report.verified).toEqual({ pack_id: "pk", verified: 1, skipped: 0 });
+  });
+
+  it("--verify-all with 0 rows to verify is ok (idempotent re-run)", async () => {
+    const d = fakes({ "a.csv": csv(`mcq,A,q1,${ref(1)}`) }, {
+      findPack: async () => "pk",
+      stage: async () => ({ importId: "imp", counts: { total: 1, ok: 0, error: 0, duplicate: 1, skip: 0 }, rows: [] }) as never,
+      verifyPack: async () => ({ verified: 0, skipped: 1 }),
+    });
+    const { report, exitCode } = await commitRun(args({ commit: true, verifyAll: true }), d);
+    expect(exitCode).toBe(0);
+    expect(report.verified).toEqual({ pack_id: "pk", verified: 0, skipped: 1 });
+  });
+
+  it("--verify-all with no reviewer exits 1 before any write", async () => {
+    const d = fakes({ "a.csv": csv(`mcq,A,q1,${ref(1)}`) }, { resolveReviewer: async () => null });
+    await expect(commitRun(args({ commit: true, verifyAll: true }), d)).rejects.toMatchObject({ exitCode: 1 });
     expect(d.calls).toEqual([]);
   });
 
