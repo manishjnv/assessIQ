@@ -28,6 +28,11 @@ export interface DemoQuestion {
   points: number;
   modelAnswer: string;
   why?: string;
+  /** Free aptitude set only (freeAptitude.ts): section and topic feed the section bars and the weakest topic. */
+  section?: 'quant' | 'logical' | 'verbal';
+  topic?: string;
+  /** 'free_public' marks a public item that must never be imported into a platform pack. */
+  origin?: 'free_public';
 }
 
 export const DEMO_MINUTES = 10;

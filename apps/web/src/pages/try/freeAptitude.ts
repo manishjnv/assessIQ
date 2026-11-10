@@ -1,0 +1,271 @@
+// PUBLIC FREE APTITUDE SET: never import these items into a platform pack.
+// The three free no-login tests at /try/aptitude/easy|medium|hard. Fixed bundled content, client-side scoring,
+// ZERO network (no api.ts, no fetch, no email, no analytics beacon). Every item is marked origin 'free_public':
+// the stems are public the moment this bundle ships, so freeAptitude.test.ts fails if one matches a real pack.
+// Easy = v1 level 1 and Medium = v1 level 2 (the retired, already public v1 set; Q-045 and Q-050 dropped as
+// arguable). Hard = engine items from the reserved public seed range k 900,000+ plus hand-written verbal items.
+// Plan: docs/private/aptitude-generator/out/FREE_SET_PLAN.md (gitignored).
+
+import type { DemoQuestion } from './demoContent';
+
+export type Section = 'quant' | 'logical' | 'verbal';
+export type FreeSlug = 'easy' | 'medium' | 'hard';
+
+export interface PoolItem {
+  id: string;
+  section: Section;
+  topic: string;
+  prompt: string;
+  options: string[];
+  correct: number;
+  why: string;
+  /** Hard engine items only: template id and the numbers of the stem (the overlap test compares them with the real pool). */
+  tpl?: string;
+  nums?: number[];
+}
+
+export interface FreeSet {
+  slug: FreeSlug;
+  title: string;
+  minutes: number;
+  /** Platform difficulty level (easy 1, medium 3, hard 5). */
+  level: 1 | 3 | 5;
+  pool: PoolItem[];
+}
+
+export const SECTIONS: Section[] = ['quant', 'logical', 'verbal'];
+/** Items drawn per attempt for each section. */
+export const MIX: Record<Section, number> = { quant: 4, logical: 3, verbal: 3 };
+export const SECTION_LABEL: Record<Section, string> = { quant: 'Quantitative', logical: 'Logical', verbal: 'Verbal' };
+export const POINTS_PER_ITEM = 10;
+export const FREE_ORIGIN = 'free_public' as const;
+
+const EASY_POOL: PoolItem[] = [
+  {"id": "e-001", "section": "quant", "topic": "percentages", "prompt": "What is 35% of 240?", "options": ["72", "96", "84", "78"], "correct": 2, "why": "35% of 240 = 35 × 240 ÷ 100 = 8400 ÷ 100 = 84."},
+  {"id": "e-002", "section": "quant", "topic": "profit & loss", "prompt": "A shopkeeper buys a bag for ₹800 and sells it at a profit of 15%. What is the selling price?", "options": ["₹920", "₹815", "₹950", "₹880"], "correct": 0, "why": "Profit = 15% of 800 = ₹120. SP = 800 + 120 = ₹920."},
+  {"id": "e-003", "section": "quant", "topic": "simple & compound interest", "prompt": "What is the simple interest on ₹5000 at 6% per annum for 3 years?", "options": ["₹1800", "₹300", "₹5900", "₹900"], "correct": 3, "why": "SI = P × R × T ÷ 100 = 5000 × 6 × 3 ÷ 100 = ₹900."},
+  {"id": "e-004", "section": "quant", "topic": "ratio & proportion", "prompt": "₹720 is divided between Asha and Bhavin in the ratio 5 : 4. What is Asha's share?", "options": ["₹360", "₹400", "₹450", "₹320"], "correct": 1, "why": "Total parts = 9; one part = 720 ÷ 9 = 80. Asha = 5 × 80 = ₹400."},
+  {"id": "e-005", "section": "quant", "topic": "averages", "prompt": "The average of five numbers is 18. If the sum of four of them is 70, what is the fifth number?", "options": ["18", "20", "22", "16"], "correct": 1, "why": "Total = 5 × 18 = 90. Fifth = 90 − 70 = 20."},
+  {"id": "e-006", "section": "quant", "topic": "time & work", "prompt": "A can finish a job in 12 days and B can finish it in 24 days. Working together, in how many days will they finish it?", "options": ["6 days", "18 days", "12 days", "8 days"], "correct": 3, "why": "Combined rate = 1/12 + 1/24 = 3/24 = 1/8 per day. So 8 days."},
+  {"id": "e-007", "section": "quant", "topic": "time speed distance", "prompt": "A 120 m long train crosses a signal pole in 6 seconds. What is its speed?", "options": ["72 km/h", "60 km/h", "80 km/h", "54 km/h"], "correct": 0, "why": "Speed = 120 ÷ 6 = 20 m/s. In km/h: 20 × 18/5 = 72 km/h."},
+  {"id": "e-008", "section": "quant", "topic": "number system", "prompt": "What is the LCM of 12, 15 and 20?", "options": ["120", "30", "60", "180"], "correct": 2, "why": "12 = 2²×3, 15 = 3×5, 20 = 2²×5. LCM = 2²×3×5 = 60."},
+  {"id": "e-009", "section": "quant", "topic": "ages", "prompt": "A father is 3 times as old as his son. The sum of their ages is 48 years. What is the father's age?", "options": ["12 years", "32 years", "40 years", "36 years"], "correct": 3, "why": "Let son = x; father = 3x; 4x = 48, x = 12. Father = 36 years."},
+  {"id": "e-010", "section": "quant", "topic": "simplification", "prompt": "Simplify: 15 + 12 × 3 − 18 ÷ 6", "options": ["78", "48", "45", "51"], "correct": 1, "why": "BODMAS: 12 × 3 = 36 and 18 ÷ 6 = 3. So 15 + 36 − 3 = 48."},
+  {"id": "e-021", "section": "logical", "topic": "number series", "prompt": "Find the next term: 4, 9, 19, 39, 79, ?", "options": ["158", "160", "169", "159"], "correct": 3, "why": "Each term = previous × 2 + 1: 4→9→19→39→79→159."},
+  {"id": "e-022", "section": "logical", "topic": "letter series", "prompt": "Find the next letter: B, D, G, K, P, ?", "options": ["V", "U", "W", "T"], "correct": 0, "why": "Positions 2, 4, 7, 11, 16: gaps +2, +3, +4, +5. Next gap +6 gives 22 = V."},
+  {"id": "e-023", "section": "logical", "topic": "coding-decoding", "prompt": "In a certain code, CLOUD is written as DMPVE. How is RAIN written in that code?", "options": ["QZHM", "SBJO", "SCKP", "TBJO"], "correct": 1, "why": "Each letter is shifted one place forward: R→S, A→B, I→J, N→O. So SBJO."},
+  {"id": "e-024", "section": "logical", "topic": "blood relations", "prompt": "Pointing to a man, Rekha says, \"He is the son of my mother's only brother.\" How is the man related to Rekha?", "options": ["Brother", "Nephew", "Cousin", "Uncle"], "correct": 2, "why": "Mother's brother is Rekha's maternal uncle; his son is her maternal cousin."},
+  {"id": "e-025", "section": "logical", "topic": "direction sense", "prompt": "Ravi walks 5 km north, turns right and walks 3 km, then turns right again and walks 5 km. How far and in which direction is he from his starting point?", "options": ["3 km east", "3 km west", "5 km east", "8 km east"], "correct": 0, "why": "North 5 km, east 3 km, then south 5 km cancels the north movement. He is 3 km east of the start."},
+  {"id": "e-026", "section": "logical", "topic": "syllogisms", "prompt": "Statements: All pens are books. Some books are cups.\nConclusions: I. Some pens are cups. II. Some cups are books.", "options": ["Only I follows", "Both I and II follow", "Only II follows", "Neither I nor II follows"], "correct": 2, "why": "Some books are cups converts to Some cups are books, so II follows. The pens and cups sets need not overlap, so I does not follow."},
+  {"id": "e-027", "section": "logical", "topic": "analogies", "prompt": "Doctor : Hospital :: Teacher : ?", "options": ["Student", "Book", "Education", "School"], "correct": 3, "why": "A doctor works in a hospital; a teacher works in a school."},
+  {"id": "e-028", "section": "logical", "topic": "odd one out", "prompt": "Find the odd one out: 16, 25, 36, 48, 64", "options": ["16", "48", "36", "64"], "correct": 1, "why": "16, 25, 36 and 64 are perfect squares; 48 is not."},
+  {"id": "e-029", "section": "logical", "topic": "clocks & calendars", "prompt": "What is the angle between the hour hand and the minute hand of a clock at 4:00?", "options": ["90°", "120°", "150°", "60°"], "correct": 1, "why": "Hour hand is at 4 × 30° = 120° from 12; minute hand is at 0°. Angle = 120°."},
+  {"id": "e-030", "section": "logical", "topic": "clocks & calendars", "prompt": "If today is Wednesday, what day of the week will it be after 100 days?", "options": ["Thursday", "Saturday", "Sunday", "Friday"], "correct": 3, "why": "100 = 14 × 7 + 2, so the day moves 2 ahead: Wednesday + 2 = Friday."},
+  {"id": "e-041", "section": "verbal", "topic": "synonyms", "prompt": "Choose the word closest in meaning to ABUNDANT.", "options": ["Plentiful", "Scarce", "Rare", "Limited"], "correct": 0, "why": "Abundant means existing in large quantities, i.e. plentiful. The others mean the opposite."},
+  {"id": "e-042", "section": "verbal", "topic": "antonyms", "prompt": "Choose the word opposite in meaning to EXPAND.", "options": ["Enlarge", "Stretch", "Contract", "Extend"], "correct": 2, "why": "Expand means to grow larger; its opposite is contract. The others are synonyms."},
+  {"id": "e-043", "section": "verbal", "topic": "fill in the blank", "prompt": "Fill in the blank: The manager was ____ by the team's sincere effort and praised them.", "options": ["depressed", "impressed", "suppressed", "expressed"], "correct": 1, "why": "Praise follows a favourable reaction; impressed fits. The other words do not make sense in context."},
+  {"id": "e-044", "section": "verbal", "topic": "fill in the blank", "prompt": "Fill in the blank: Neither of the two answers ____ correct.", "options": ["are", "were", "have been", "is"], "correct": 3, "why": "\"Neither\" takes a singular verb, and the statement is in the present tense: is."},
+  {"id": "e-046", "section": "verbal", "topic": "sentence improvement", "prompt": "Choose the best version of the sentence: \"She did not know where was the station.\"", "options": ["She did not know where was station.", "She did not know where the station was.", "She did not know where is the station being.", "No improvement is needed."], "correct": 1, "why": "In an embedded question the normal word order is used: subject before verb, so \"where the station was\"."},
+  {"id": "e-047", "section": "verbal", "topic": "idioms & phrases", "prompt": "Choose the meaning of the idiom: \"To beat around the bush\".", "options": ["To hit shrubs with a stick", "To hunt birds in the wild", "To speak indirectly and avoid the main point", "To become very angry"], "correct": 2, "why": "The idiom means to avoid coming straight to the point."},
+  {"id": "e-048", "section": "verbal", "topic": "one-word substitution", "prompt": "Choose one word for: \"An abnormal fear of enclosed spaces\".", "options": ["Claustrophobia", "Agoraphobia", "Hydrophobia", "Xenophobia"], "correct": 0, "why": "Claustrophobia is the fear of confined spaces. Agoraphobia is fear of open spaces, hydrophobia of water, xenophobia of strangers."},
+  {"id": "e-049", "section": "verbal", "topic": "fill in the blank", "prompt": "Fill in the blank: She has been living in Pune ____ 2019.", "options": ["for", "since", "from", "by"], "correct": 1, "why": "\"Since\" is used with a fixed point in time (2019) with the present perfect continuous tense."},
+];
+
+const MEDIUM_POOL: PoolItem[] = [
+  {"id": "m-011", "section": "quant", "topic": "simple & compound interest", "prompt": "What is the compound interest on ₹8000 at 10% per annum for 2 years, compounded annually?", "options": ["₹1600", "₹1700", "₹1680", "₹9680"], "correct": 2, "why": "Amount = 8000 × 1.1 × 1.1 = 9680. CI = 9680 − 8000 = ₹1680."},
+  {"id": "m-012", "section": "quant", "topic": "pipes & cisterns", "prompt": "Pipe A fills a tank in 12 hours and pipe B in 15 hours, while pipe C empties it in 20 hours. If all three are opened together, how long will the empty tank take to fill?", "options": ["10 hours", "8 hours", "12 hours", "15 hours"], "correct": 0, "why": "Net rate = 1/12 + 1/15 − 1/20 = (5 + 4 − 3)/60 = 6/60 = 1/10. Time = 10 hours."},
+  {"id": "m-013", "section": "quant", "topic": "mixtures & alligation", "prompt": "In what ratio must milk costing ₹60 per litre be mixed with milk costing ₹80 per litre so that the mixture is worth ₹66 per litre?", "options": ["7 : 3", "3 : 7", "2 : 1", "4 : 3"], "correct": 0, "why": "Alligation: cheaper : dearer = (80 − 66) : (66 − 60) = 14 : 6 = 7 : 3."},
+  {"id": "m-014", "section": "quant", "topic": "permutations & combinations", "prompt": "In how many distinct ways can the letters of the word LEVEL be arranged?", "options": ["60", "120", "30", "15"], "correct": 2, "why": "5 letters with L repeated twice and E repeated twice: 5! ÷ (2! × 2!) = 120 ÷ 4 = 30."},
+  {"id": "m-015", "section": "quant", "topic": "probability", "prompt": "Two fair dice are thrown together. What is the probability that the sum of the numbers is 9?", "options": ["1/6", "1/9", "5/36", "1/12"], "correct": 1, "why": "Favourable: (3,6), (4,5), (5,4), (6,3) = 4 outcomes out of 36. Probability = 4/36 = 1/9."},
+  {"id": "m-016", "section": "quant", "topic": "profit & loss", "prompt": "A trader marks an article 40% above its cost price and then allows a discount of 15%. What is his profit percentage?", "options": ["25%", "21%", "15%", "19%"], "correct": 3, "why": "Let CP = 100. MP = 140. SP = 140 × 0.85 = 119. Profit = 19%."},
+  {"id": "m-017", "section": "quant", "topic": "time speed distance", "prompt": "A boat's speed in still water is 15 km/h and the stream flows at 3 km/h. How long does it take to go 36 km downstream and come back the same 36 km upstream?", "options": ["4.8 hours", "5 hours", "6 hours", "4.5 hours"], "correct": 1, "why": "Downstream speed = 18 km/h, time = 36 ÷ 18 = 2 h. Upstream speed = 12 km/h, time = 36 ÷ 12 = 3 h. Total = 5 hours."},
+  {"id": "m-018", "section": "quant", "topic": "percentages", "prompt": "The population of a town increases by 20% in one year and then decreases by 10% in the next year. What is the net change over the two years?", "options": ["8% increase", "10% increase", "8% decrease", "12% increase"], "correct": 0, "why": "Net factor = 1.20 × 0.90 = 1.08, i.e. an 8% increase."},
+  {"id": "m-019", "section": "quant", "topic": "number system", "prompt": "What is the remainder when 2^10 is divided by 7?", "options": ["1", "4", "3", "2"], "correct": 3, "why": "2³ = 8 ≡ 1 (mod 7). 2^10 = (2³)³ × 2 ≡ 1 × 2 = 2. (Check: 1024 = 7 × 146 + 2.)"},
+  {"id": "m-020", "section": "quant", "topic": "time & work", "prompt": "8 men can complete a work in 18 days. After 6 days, 4 more men join them. In how many more days will the remaining work be finished?", "options": ["12 days", "9 days", "8 days", "10 days"], "correct": 2, "why": "Total work = 8 × 18 = 144 man-days. Done in 6 days = 48. Left = 96. With 12 men: 96 ÷ 12 = 8 days."},
+  {"id": "m-031", "section": "logical", "topic": "number series", "prompt": "Find the next term: 2, 3, 5, 9, 17, ?", "options": ["31", "35", "33", "34"], "correct": 2, "why": "Differences are 1, 2, 4, 8, so the next is 16: 17 + 16 = 33."},
+  {"id": "m-032", "section": "logical", "topic": "coding-decoding", "prompt": "In a certain code, MANGO is written as NCQKT, where the letters are shifted by 1, 2, 3, 4, 5 places respectively. How is PEARL written?", "options": ["QGDVQ", "QGDUP", "QFCUP", "QGEVQ"], "correct": 0, "why": "P+1 = Q, E+2 = G, A+3 = D, R+4 = V, L+5 = Q. So QGDVQ."},
+  {"id": "m-033", "section": "logical", "topic": "blood relations", "prompt": "A is the brother of B. B is the daughter of C. C is the wife of D. How is D related to A?", "options": ["Uncle", "Grandfather", "Brother-in-law", "Father"], "correct": 3, "why": "B is C's daughter and A is B's brother, so A is C's son. C's husband D is therefore A's father."},
+  {"id": "m-034", "section": "logical", "topic": "direction sense", "prompt": "A man starts from point P and walks 8 km east, turns left and walks 6 km, turns left again and walks 8 km, then turns right and walks 2 km. How far and in which direction is he from P?", "options": ["6 km north", "8 km north", "10 km north", "8 km west"], "correct": 1, "why": "East 8, then north 6, then west 8 puts him 6 km north of P. Facing west, turning right means facing north; 2 km more gives 8 km north of P."},
+  {"id": "m-035", "section": "logical", "topic": "syllogisms", "prompt": "Statements: Some doctors are singers. All singers are dancers. No dancer is a painter.\nConclusions: I. Some doctors are dancers. II. Some singers are painters.", "options": ["Only I follows", "Only II follows", "Both I and II follow", "Neither I nor II follows"], "correct": 0, "why": "Some doctors are singers and all singers are dancers, so some doctors are dancers: I follows. Singers are dancers and no dancer is a painter, so no singer is a painter: II is false."},
+  {"id": "m-036", "section": "logical", "topic": "seating arrangement", "prompt": "Five friends A, B, C, D and E sit in a row facing north. B is at the extreme right end. A sits second to the left of B. D sits immediately to the left of A. C does not sit at either end. Who sits at the extreme left end?", "options": ["D", "C", "E", "A"], "correct": 2, "why": "Positions 1 to 5 from the left: B = 5, A = 3, D = 2. C and E take 1 and 4; C is not at an end so C = 4, E = 1. E is at the extreme left."},
+  {"id": "m-037", "section": "logical", "topic": "seating arrangement", "prompt": "Four persons P, Q, R and S sit around a square table facing the centre. P sits opposite Q. R sits to the immediate left of P. Who sits to the immediate right of P?", "options": ["Q", "R", "S", "Cannot be determined"], "correct": 2, "why": "P's neighbours are the two persons who are not opposite, R and S. R is on P's left, so S is on P's right."},
+  {"id": "m-038", "section": "logical", "topic": "statement & assumption", "prompt": "Statement: The use of mobile phones is banned inside the examination hall.\nAssumptions: I. Mobile phones can be used for malpractice in examinations. II. All students bring mobile phones to the examination hall.", "options": ["Only I is implicit", "Only II is implicit", "Both I and II are implicit", "Neither I nor II is implicit"], "correct": 0, "why": "A ban is imposed because of a possible misuse, so I is implicit. The ban does not assume that every student carries a phone, so II is not implicit."},
+  {"id": "m-039", "section": "logical", "topic": "data sufficiency", "prompt": "What is the value of x?\nStatement I: x + y = 10.\nStatement II: x − y = 2.", "options": ["Statement I alone is sufficient", "Both statements together are needed", "Statement II alone is sufficient", "Even both together are not sufficient"], "correct": 1, "why": "Each statement alone has two unknowns. Together, adding gives 2x = 12, so x = 6."},
+  {"id": "m-040", "section": "logical", "topic": "clocks & calendars", "prompt": "What is the angle between the hands of a clock at 7:20?", "options": ["110°", "90°", "120°", "100°"], "correct": 3, "why": "Hour hand = 7 × 30 + 20 × 0.5 = 220°. Minute hand = 20 × 6 = 120°. Angle = 220 − 120 = 100°."},
+  {"id": "m-051", "section": "verbal", "topic": "synonyms", "prompt": "Choose the word closest in meaning to EPHEMERAL.", "options": ["Short-lived", "Eternal", "Fragile", "Ordinary"], "correct": 0, "why": "Ephemeral means lasting for a very short time, so short-lived. Eternal is the opposite."},
+  {"id": "m-052", "section": "verbal", "topic": "antonyms", "prompt": "Choose the word opposite in meaning to BENEVOLENT.", "options": ["Kind", "Generous", "Malevolent", "Charitable"], "correct": 2, "why": "Benevolent means well-meaning and kindly; malevolent means wishing harm to others."},
+  {"id": "m-053", "section": "verbal", "topic": "fill in the blank", "prompt": "Fill in the blank: Despite the ____ evidence against him, the accused maintained his innocence.", "options": ["negligible", "scanty", "overwhelming", "doubtful"], "correct": 2, "why": "\"Despite\" signals contrast: he claimed innocence even though the evidence was very strong, hence overwhelming."},
+  {"id": "m-054", "section": "verbal", "topic": "fill in the blank", "prompt": "Fill in the blank: Had I known about the strike, I ____ stayed at home.", "options": ["would have", "will have", "had", "would"], "correct": 0, "why": "This is a third conditional: \"Had + past participle ... would have + past participle\"."},
+  {"id": "m-055", "section": "verbal", "topic": "sentence improvement", "prompt": "Choose the best version: \"The team captain, along with his players, were greeted by the crowd.\"", "options": ["The team captain, along with his players, have been greeted by the crowd.", "The team captain, along with his players, were being greeted by the crowd.", "No improvement is needed.", "The team captain, along with his players, was greeted by the crowd."], "correct": 3, "why": "The subject is \"captain\" (singular); \"along with his players\" does not change the number. So the verb is \"was\"."},
+  {"id": "m-056", "section": "verbal", "topic": "idioms & phrases", "prompt": "Choose the meaning of the idiom: \"To bite the bullet\".", "options": ["To eat hurriedly", "To face an unpleasant situation bravely", "To speak rudely", "To avoid a difficult task"], "correct": 1, "why": "The idiom means to accept and endure something painful or unpleasant with courage."},
+  {"id": "m-057", "section": "verbal", "topic": "one-word substitution", "prompt": "Choose one word for: \"A speech delivered without any preparation\".", "options": ["Soliloquy", "Monologue", "Oration", "Extempore"], "correct": 3, "why": "An extempore speech is delivered without preparation. A soliloquy is speaking to oneself; a monologue is a long speech by one person; an oration is a formal speech."},
+  {"id": "m-058", "section": "verbal", "topic": "para-jumble", "prompt": "Arrange the sentences in a logical order.\nP: So Ravi woke up late.\nQ: The alarm did not ring on Monday.\nR: He reached the station only at 8 a.m.\nS: By then, the train had already left.", "options": ["PQRS", "QRPS", "QPRS", "RSQP"], "correct": 2, "why": "Q gives the cause (alarm failure), P the result (waking late), R his arrival, and S the consequence (train gone). Order: QPRS."},
+  {"id": "m-059", "section": "verbal", "topic": "reading comprehension", "prompt": "Passage: Water scarcity in many Indian cities is not only a result of low rainfall. Poor maintenance of pipelines leads to large leakages, and unchecked groundwater extraction lowers water tables every year. Experts argue that rainwater harvesting and repairing old pipes can ease the problem faster than building new dams.\nQuestion: According to the passage, what can ease the problem faster than building new dams?", "options": ["Extracting more groundwater", "Rainwater harvesting and repairing old pipes", "Waiting for higher rainfall", "Building more pipelines"], "correct": 1, "why": "The last sentence states that rainwater harvesting and repairing old pipes can ease the problem faster than new dams."},
+  {"id": "m-060", "section": "verbal", "topic": "reading comprehension", "prompt": "Passage: Water scarcity in many Indian cities is not only a result of low rainfall. Poor maintenance of pipelines leads to large leakages, and unchecked groundwater extraction lowers water tables every year. Experts argue that rainwater harvesting and repairing old pipes can ease the problem faster than building new dams.\nQuestion: Which of the following is NOT mentioned in the passage as a cause of water scarcity?", "options": ["Pollution of rivers by industries", "Leakage from pipelines", "Unchecked groundwater extraction", "Low rainfall"], "correct": 0, "why": "The passage mentions low rainfall, pipeline leakages and groundwater extraction. River pollution is never mentioned."},
+];
+
+// HARD_BEGIN
+const HARD_POOL: PoolItem[] = [
+  {"id": "h-01", "section": "quant", "topic": "profit-and-loss", "prompt": "Wasim buys a bicycle for ₹5,100 and marks it 40% above the cost price. A discount of 20% is then given on the marked price. What is the profit percent?", "options": ["28%", "13%", "12%", "14%"], "correct": 2, "why": "Marked price = 5100 × 140/100 = 7140. Selling price = 7140 × 80/100 = 5712. Profit = 5712 − 5100 = 612. Profit percent = 612 × 100 / 5100 = 12%.", "tpl": "pnl", "nums": [5100, 40, 20]},
+  {"id": "h-04", "section": "quant", "topic": "time-and-work", "prompt": "Bina alone needs 102 days and Nisha alone needs 51 days to harvest a field. Bina works alone for 9 days, and then Nisha joins Bina. After Nisha joins, in how many days will they finish the remaining work together?", "options": ["34 days", "28 days", "31 days", "40 days"], "correct": 2, "why": "In 9 days Bina does 9/102 of the work, so 1 - 9/102 = 31/34 is left. Together they do 1/102 + 1/51 = 1/34 per day, so the rest takes 31/34 × 34 = 31 days.", "tpl": "tw", "nums": [102, 51, 9]},
+  {"id": "h-08", "section": "quant", "topic": "probability", "prompt": "A box contains 9 red, 3 blue and 2 green marbles. 2 marbles are taken out successively and none is put back. Find the probability that the 2 marbles are made up of a red marble and a blue marble, in either order.", "options": ["27/98", "64/91", "27/91", "27/182"], "correct": 2, "why": "Counting ordered draws, 14 × 13 = 182 are possible and 9 × 3 + 3 × 9 = 54 have a red and a blue, so the probability is 54/182 = 27/91.", "tpl": "prob", "nums": [9, 3, 2, 2]},
+  {"id": "h-11", "section": "quant", "topic": "permutations", "prompt": "From 9 men and 9 women, a committee of 7 is chosen. How many committees have at least 2 women?", "options": ["31,032", "31,788", "26,496", "31,824"], "correct": 0, "why": "Total committees of 7 from 18 people = 18C7 = 31,824. Committees with no woman = 9C7 = 36. Committees with exactly one woman = 9 × 9C6 = 756. At least 2 women = 31,824 − 36 − 756 = 31,032.", "tpl": "pc", "nums": [9, 9, 7, 2]},
+  {"id": "h-15", "section": "logical", "topic": "mixed-arrangement", "prompt": "8 friends Sneha, Imran, Wasim, Nisha, Anil, Bina, Usha and Isha sit around a circular table, all facing the centre. Seen from above, the next seat clockwise is on the left of a sitter and the next seat anticlockwise is on the right. Counting to the left or right of a person starts with the immediate neighbour as 1st. Anil and Bina sit next to each other. Wasim sits exactly opposite Usha. Anil sits 3rd to the left of Usha. Imran sits immediately to the right of Isha. Sneha sits exactly opposite Anil. Who sits immediately to the left of the person opposite Imran?", "options": ["Usha", "Nisha", "Anil", "Bina"], "correct": 3, "why": "One seating that fits every clue is shown here: going clockwise around the table the order is Sneha, Usha, Nisha, Bina, Anil, Wasim, Imran, Isha. In every seating that fits the clues, the person immediately to the left of the person opposite Imran is Bina, so the answer is Bina."},
+  {"id": "h-17", "section": "logical", "topic": "all-some-no-statements", "prompt": "Assume that these statements are true. All bells are ropes. Some drums are bells. Some drums are not ropes. Each group named above is non-empty. Which of these is true in some cases and false in others, given the statements?", "options": ["Some bells are ropes", "Some bells are not drums", "No ropes are drums", "All drums are bells"], "correct": 1, "why": "All bells are ropes and bells exist, so 'Some bells are ropes' is certain. The drums that are bells are ropes, so 'No ropes are drums' is impossible. Some drums are not ropes, so they are not bells, and 'All drums are bells' is impossible. The bells may or may not all be drums, so only 'Some bells are not drums' can be true or false."},
+  {"id": "h-20", "section": "logical", "topic": "logical-puzzles", "prompt": "In the same year, 6 cousins (Sneha, Imran, Sameer, Zoya, Omkar and Gita) were born, each in a different month from this list: March, April, June, August, September and December. In this puzzle the months are compared by their place in this list: next to, right before and right after mean neighbours in the list, between means strictly between in the list, and every month in the list is used. The birthday of Zoya does not fall in December. Sneha has a birthday between the birthdays of Omkar and Imran. Gita has a birthday between the birthdays of Zoya and Sameer. Sameer's birthday is in the month right after Imran's. Omkar has a birthday between the birthdays of Zoya and Sameer. Zoya and Gita have birthdays in months next to each other in the list. Imran was born in which month?", "options": ["September", "August", "December", "April"], "correct": 0, "why": "One arrangement that fits every clue is Zoya in March, Gita in April, Omkar in June, Sneha in August, Imran in September, Sameer in December. Every arrangement that fits the clues gives September for the question, so the answer is September."},
+  {"id": "h-v1", "section": "verbal", "topic": "synonyms", "prompt": "Choose the word closest in meaning to OBSEQUIOUS.", "options": ["Servile", "Reserved", "Arrogant", "Cautious"], "correct": 0, "why": "Obsequious means too eager to please or obey, like a servant. Arrogant is the opposite attitude, and reserved and cautious describe other qualities."},
+  {"id": "h-v2", "section": "verbal", "topic": "sentence_completion", "prompt": "The auditor's ______ attention to detail meant that not even a one-rupee discrepancy escaped her notice.", "options": ["meticulous", "perfunctory", "desultory", "ostentatious"], "correct": 0, "why": "Meticulous means extremely careful about detail, which fits a one-rupee discrepancy being noticed. Perfunctory and desultory mean careless or random, and ostentatious means showy."},
+  {"id": "h-v3", "section": "verbal", "topic": "antonyms", "prompt": "Choose the word most opposite in meaning to PARSIMONIOUS.", "options": ["Lavish", "Frugal", "Austere", "Meagre"], "correct": 0, "why": "Parsimonious means very unwilling to spend money. Its opposite is lavish, meaning spending freely. Frugal and meagre point the same way as parsimonious, and austere means plain and strict, so none of them is an opposite."},
+];
+// HARD_END
+
+
+export const FREE_SETS: Record<FreeSlug, FreeSet> = {
+  easy: { slug: 'easy', title: 'Warm-up', minutes: 8, level: 1, pool: EASY_POOL },
+  medium: { slug: 'medium', title: 'Campus level', minutes: 10, level: 3, pool: MEDIUM_POOL },
+  hard: { slug: 'hard', title: 'Top scorer', minutes: 15, level: 5, pool: HARD_POOL },
+};
+
+export const FREE_SLUGS = Object.keys(FREE_SETS) as FreeSlug[];
+
+export const isFreeSlug = (s: string | undefined): s is FreeSlug =>
+  s != null && Object.prototype.hasOwnProperty.call(FREE_SETS, s);
+
+/** Where the end button goes. true = SIGNUP_ENABLED is true on the API (checked on the VPS 2026-11-10); set false to send people to /contact. */
+export const SIGNUP_OPEN = true;
+export const END_HREF = SIGNUP_OPEN ? '/signup?src=try' : '/contact?src=try';
+export const LANDING_URL = 'https://assessiq.in/free-aptitude-test';
+
+/** Random draw of 4 quantitative + 3 logical + 3 verbal for one attempt (Fisher-Yates; `rng` is injectable for tests). */
+export function drawSet(set: FreeSet, rng: () => number = Math.random): DemoQuestion[] {
+  const out: DemoQuestion[] = [];
+  for (const s of SECTIONS) {
+    const items = set.pool.filter((i) => i.section === s);
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [items[i], items[j]] = [items[j]!, items[i]!];
+    }
+    for (const it of items.slice(0, MIX[s])) out.push(toDemoQuestion(it));
+  }
+  return out;
+}
+
+export function toDemoQuestion(it: PoolItem): DemoQuestion {
+  return {
+    id: it.id,
+    type: 'mcq',
+    typeLabel: SECTION_LABEL[it.section],
+    prompt: it.prompt,
+    options: it.options,
+    correct: it.correct,
+    points: POINTS_PER_ITEM,
+    modelAnswer: it.options[it.correct]!,
+    why: it.why,
+    section: it.section,
+    topic: it.topic,
+    origin: FREE_ORIGIN,
+  };
+}
+
+export function bandFor(percent: number): string {
+  if (percent >= 90) return 'Top scorer';
+  if (percent >= 70) return 'Placement-ready';
+  if (percent >= 40) return 'Getting there';
+  return 'Build the basics';
+}
+
+export interface SectionScore {
+  section: Section;
+  earned: number;
+  max: number;
+  percent: number;
+}
+
+export function sectionScores(rows: { q: DemoQuestion; earned: number }[]): SectionScore[] {
+  return SECTIONS.map((section) => {
+    const mine = rows.filter((r) => r.q.section === section);
+    const max = mine.reduce((s, r) => s + r.q.points, 0);
+    const earned = mine.reduce((s, r) => s + r.earned, 0);
+    return { section, earned, max, percent: max === 0 ? 0 : Math.round((earned / max) * 100) };
+  }).filter((s) => s.max > 0);
+}
+
+/** Topic with the lowest score (ties: the first seen). Null when every topic is fully right. */
+export function weakestTopic(rows: { q: DemoQuestion; earned: number }[]): string | null {
+  const t = new Map<string, { earned: number; max: number }>();
+  for (const r of rows) {
+    const k = r.q.topic;
+    if (!k) continue;
+    const e = t.get(k) ?? { earned: 0, max: 0 };
+    e.earned += r.earned;
+    e.max += r.q.points;
+    t.set(k, e);
+  }
+  let worst: string | null = null;
+  let worstRatio = 1;
+  for (const [k, v] of t) {
+    const ratio = v.max === 0 ? 1 : v.earned / v.max;
+    if (ratio < worstRatio) {
+      worst = k;
+      worstRatio = ratio;
+    }
+  }
+  return worst;
+}
+
+export const formatTopic = (t: string): string => t.replace(/[_-]/g, ' ');
+
+export function formatClock(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** One line on pace, from the accuracy and the share of the time limit used. */
+export function paceLine(percent: number, usedSeconds: number, limitSeconds: number): string {
+  const fast = usedSeconds <= limitSeconds * 0.6;
+  if (fast && percent < 60) return 'Fast but careless: slow down and check each option.';
+  if (!fast && percent >= 70) return 'Accurate but slow: practise speed on the topics you know.';
+  if (fast && percent >= 70) return 'Fast and accurate.';
+  return 'Pace is fine: work on accuracy.';
+}
+
+/** Plain text for WhatsApp: headline plus an emoji row (one square per item, in order) and the landing link. */
+export function shareText(set: FreeSet, correctFlags: boolean[], usedSeconds: number): string {
+  const right = correctFlags.filter(Boolean).length;
+  const percent = Math.round((right / correctFlags.length) * 100);
+  const grid = correctFlags.map((ok) => (ok ? '🟩' : '🟥')).join('');
+  return `AssessIQ ${set.title} aptitude test: ${right}/${correctFlags.length} in ${formatClock(usedSeconds)} (${bandFor(percent)})\n${grid}\nTry it free, no login: ${LANDING_URL}/${set.slug}?src=wa`;
+}
+
+export const whatsappLink = (text: string): string => `https://wa.me/?text=${encodeURIComponent(text)}`;
+
+// Best score per set stays in this browser only. localStorage can be blocked: every access is try/catch.
+
+const BEST_KEY = 'aiq-free-aptitude-best';
+export type BestScores = Partial<Record<FreeSlug, number>>;
+
+export function readBest(): BestScores {
+  try {
+    const raw = window.localStorage.getItem(BEST_KEY);
+    const v = (raw ? JSON.parse(raw) : {}) as Record<string, unknown>;
+    const out: BestScores = {};
+    for (const s of FREE_SLUGS) {
+      const n = v[s];
+      if (typeof n === 'number' && Number.isFinite(n)) out[s] = n;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function saveBest(slug: FreeSlug, percent: number): BestScores {
+  const cur = readBest();
+  if (cur[slug] == null || percent > cur[slug]!) cur[slug] = percent;
+  try {
+    window.localStorage.setItem(BEST_KEY, JSON.stringify(cur));
+  } catch {
+    /* blocked storage: the score is just not remembered */
+  }
+  return cur;
+}

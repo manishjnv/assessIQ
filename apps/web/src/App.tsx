@@ -258,6 +258,7 @@ export function App(): React.JSX.Element {
 
           {/* Public demo (no RequireSession, no API calls). Needs /try + /try/* in the Caddy @app matcher. */}
           <Route path="/try" element={<TryPage />} />
+          <Route path="/try/aptitude/:set" element={<TryPage />} />
           <Route path="/try/certificate" element={<TryCertificatePage />} />
 
           <Route path="*" element={<NotFound />} />

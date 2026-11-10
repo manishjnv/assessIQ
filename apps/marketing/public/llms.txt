@@ -14,6 +14,7 @@ India-first B2B assessment platform for IT hiring, campus recruitment, and educa
 - [Trust Center](https://assessiq.in/trust) — Controls, sub-processors, data location and how AI is used for written answers, on one page.
 - [Online assessment platforms in India](https://assessiq.in/resources/online-assessment-platforms-in-india) — Neutral table of platforms used in India from each vendor's public site, and five questions to ask when choosing.
 - [Technical screening software: a buyer checklist](https://assessiq.in/resources/technical-screening-software-buyers-guide) — Ten questions to ask any vendor, what common integrity controls cannot stop, red flags and a two-week trial plan.
+- [Free Aptitude Test](https://assessiq.in/free-aptitude-test) — Three free 10-question aptitude practice sets (Warm-up, Campus level, Top scorer). No login, answers stay in your browser, practice only.
 - [Percentile Calculator](https://assessiq.in/tools/percentile-calculator) — Free in-browser tool: score to percentage and percentile rank in a group.
 - [Accessibility](https://assessiq.in/accessibility) — Self-assessment against WCAG 2.2 A and AA for this website: what was tested, results per criterion, known gaps.
 - [About](https://assessiq.in/about) — Mission, approach, and the principles behind AssessIQ's evidence-based assessment model.

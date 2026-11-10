@@ -10,7 +10,7 @@
 // answers live only in this tab's memory; the page says so.
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Link } from 'react-router';
+import { Link, Navigate, useParams } from 'react-router';
 import { Button, Card, Chip, Logo, Modal, ScoreRing } from '@assessiq/ui-system';
 import { AttemptTimer, AutosaveIndicator, QuestionNavigator } from '@assessiq/candidate-ui';
 import type { AutosaveStatus, NavigatorItem } from '@assessiq/candidate-ui';
@@ -31,6 +31,8 @@ import {
   type DemoQuestion,
 } from './demoContent';
 import { isDeterministicType } from '@assessiq/question-types';
+import { FreeIntro, FreeResult } from './FreeScreens';
+import { FREE_SETS, LANDING_URL, drawSet, isFreeSlug, type FreeSet } from './freeAptitude';
 
 type Phase = 'intro' | 'run' | 'result';
 
@@ -53,47 +55,68 @@ const PAGE: CSSProperties = {
 const WRAP: CSSProperties = { maxWidth: 760, margin: '0 auto', padding: '16px' };
 
 export function TryPage(): React.JSX.Element {
+  const { set } = useParams();
+  if (set != null && !isFreeSlug(set)) return <Navigate to="/try" replace />;
+  // key: moving from one free set to the next remounts the page with a fresh intro.
+  return <TryFlow key={set ?? 'demo'} free={set != null && isFreeSlug(set) ? FREE_SETS[set] : null} />;
+}
+
+function TryFlow({ free }: { free: FreeSet | null }): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>('intro');
+  const [questions, setQuestions] = useState<DemoQuestion[]>(DEMO_QUESTIONS);
   const [answers, setAnswers] = useState<DemoAnswers>({});
   const [endsAt, setEndsAt] = useState<string>('');
+  const [startedAt, setStartedAt] = useState(0);
+  const [usedSeconds, setUsedSeconds] = useState(0);
   const [timedOut, setTimedOut] = useState(false);
+  const minutes = free?.minutes ?? DEMO_MINUTES;
 
   useEffect(() => {
     const prev = document.title;
-    document.title = 'Try a sample assessment | AssessIQ';
-    // Z-32: /try is a real public demo, so it gets a canonical (Googlebot renders JS).
+    document.title = free ? `${free.title} aptitude test, free | AssessIQ` : 'Try a sample assessment | AssessIQ';
+    // Z-32: /try is a real public demo, so it gets a canonical (Googlebot renders JS). A free set points at its landing page.
     const link = document.createElement('link');
     link.rel = 'canonical';
-    link.href = SHARE_URL;
+    link.href = free ? `${LANDING_URL}/${free.slug}` : SHARE_URL;
     document.head.appendChild(link);
     return () => {
       document.title = prev;
       link.remove();
     };
-  }, []);
+  }, [free]);
 
   const begin = (): void => {
     setAnswers({});
     setTimedOut(false);
-    setEndsAt(new Date(Date.now() + DEMO_MINUTES * 60_000).toISOString());
+    setQuestions(free ? drawSet(free) : DEMO_QUESTIONS);
+    setStartedAt(Date.now());
+    setEndsAt(new Date(Date.now() + minutes * 60_000).toISOString());
     setPhase('run');
   };
 
   return (
     <div className="aiq-attempt-shell" style={PAGE}>
-      {phase === 'intro' && <Intro onBegin={begin} />}
+      {phase === 'intro' && (free ? <FreeIntro set={free} onBegin={begin} /> : <Intro onBegin={begin} />)}
       {phase === 'run' && (
         <Runner
+          questions={questions}
+          free={free != null}
           endsAt={endsAt}
           answers={answers}
           setAnswers={setAnswers}
           onFinish={(byTimer) => {
             setTimedOut(byTimer);
+            setUsedSeconds(byTimer ? minutes * 60 : Math.min(minutes * 60, Math.round((Date.now() - startedAt) / 1000)));
             setPhase('result');
           }}
         />
       )}
-      {phase === 'result' && <Result answers={answers} timedOut={timedOut} onRetry={begin} />}
+      {phase === 'result' &&
+        (free ? (
+          <FreeResult set={free} questions={questions} answers={answers} timedOut={timedOut} usedSeconds={usedSeconds} onRetry={begin} />
+        ) : (
+          <Result answers={answers} timedOut={timedOut} onRetry={begin} />
+        ))}
     </div>
   );
 }
@@ -119,8 +142,8 @@ function Intro({ onBegin }: { onBegin: () => void }): React.JSX.Element {
       </h1>
       <p style={{ fontSize: 'var(--aiq-text-lg)', lineHeight: 1.55, color: 'var(--aiq-color-fg-secondary)', margin: '0 0 24px' }}>
         {DEMO_QUESTIONS.length} questions, {DEMO_MINUTES} minutes, the same screens a candidate sees in a real
-        AssessIQ assessment. No login and no account. Your answers are scored in your browser and are not sent or
-        stored anywhere.
+        AssessIQ assessment. No login and no account. Your answers are scored in your browser and stay in your
+        browser.
       </p>
       <Card padding="lg">
         <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8, fontSize: 'var(--aiq-text-lg)' }}>
@@ -144,11 +167,15 @@ function Intro({ onBegin }: { onBegin: () => void }): React.JSX.Element {
 // ── runner ───────────────────────────────────────────────────────────────────
 
 function Runner({
+  questions,
+  free,
   endsAt,
   answers,
   setAnswers,
   onFinish,
 }: {
+  questions: DemoQuestion[];
+  free: boolean;
   endsAt: string;
   answers: DemoAnswers;
   setAnswers: (fn: (prev: DemoAnswers) => DemoAnswers) => void;
@@ -157,7 +184,7 @@ function Runner({
   const [idx, setIdx] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [save, setSave] = useState<{ status: AutosaveStatus; at: string | null }>({ status: 'idle', at: null });
-  const q = DEMO_QUESTIONS[idx]!;
+  const q = questions[idx]!;
   const headingRef = useRef<HTMLHeadingElement>(null);
   const finishRef = useRef(onFinish);
   finishRef.current = onFinish;
@@ -179,13 +206,13 @@ function Runner({
     );
   };
 
-  const items: NavigatorItem[] = DEMO_QUESTIONS.map((x, i) => ({
+  const items: NavigatorItem[] = questions.map((x, i) => ({
     questionId: x.id,
     position: i + 1,
     status: i === idx ? 'current' : isAnswered(answers[x.id]) ? 'answered' : 'unanswered',
   }));
-  const unanswered = DEMO_QUESTIONS.filter((x) => !isAnswered(answers[x.id])).length;
-  const last = idx === DEMO_QUESTIONS.length - 1;
+  const unanswered = questions.filter((x) => !isAnswered(answers[x.id])).length;
+  const last = idx === questions.length - 1;
 
   return (
     <main style={WRAP}>
@@ -194,25 +221,27 @@ function Runner({
       >
         <Logo size={24} showWordmark />
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-          <Chip variant="warn">Demo</Chip>
+          <Chip variant="warn">{free ? 'Practice' : 'Demo'}</Chip>
           <AutosaveIndicator status={save.status} lastSavedAt={save.at} />
           <AttemptTimer endsAt={endsAt} onExpire={() => finishRef.current(true)} data-test-id="try-timer" />
         </div>
       </header>
       <p style={{ fontSize: 13, color: 'var(--aiq-color-fg-muted)', margin: '8px 0 0' }}>
-        Autosave is shown as in a real assessment. In this demo your answers stay in this tab only.
+        {free
+          ? 'Your answers stay in this browser tab only.'
+          : 'Autosave is shown as in a real assessment. In this demo your answers stay in this tab only.'}
       </p>
 
       <QuestionNavigator
         items={items}
-        onSelect={(id) => setIdx(DEMO_QUESTIONS.findIndex((x) => x.id === id))}
+        onSelect={(id) => setIdx(questions.findIndex((x) => x.id === id))}
         data-test-id="try-navigator"
       />
 
       <Card padding="lg">
         <p style={{ ...EYEBROW, margin: '0 0 8px' }}>
-          Question {idx + 1} of {DEMO_QUESTIONS.length} &middot; {q.typeLabel}
-          {q.points > 0 ? ` · ${q.points} points` : ' · not scored in the demo'}
+          Question {idx + 1} of {questions.length} &middot; {q.typeLabel}
+          {free ? '' : q.points > 0 ? ` · ${q.points} points` : ' · not scored in the demo'}
         </p>
         <h1
           ref={headingRef}
@@ -266,7 +295,7 @@ function Runner({
         <p style={{ margin: '0 0 8px', fontSize: 'var(--aiq-text-lg)', lineHeight: 1.5 }}>
           {unanswered === 0
             ? 'You have answered every question.'
-            : `${unanswered} of ${DEMO_QUESTIONS.length} questions are unanswered.`}{' '}
+            : `${unanswered} of ${questions.length} questions are unanswered.`}{' '}
           Once you submit you cannot change your answers.
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 16 }}>

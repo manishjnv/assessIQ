@@ -83,6 +83,12 @@ const pages = {
   'resources-reducing-bias-technical-hiring': { title: 'Reducing Bias in Technical Hiring' },
   'resources-remote-proctoring-integrity':    { title: 'Remote Proctoring & Test Integrity' },
 
+  // Free aptitude test
+  'free-aptitude-test':        { title: 'Free Aptitude Test Online' },
+  'free-aptitude-test-easy':   { title: 'Free Aptitude Test: Warm-up' },
+  'free-aptitude-test-medium': { title: 'Free Aptitude Test: Campus Level' },
+  'free-aptitude-test-hard':   { title: 'Free Aptitude Test: Top Scorer' },
+
   // Tools (ASMT-22)
   'tools':                  { title: 'Free Tools for Hiring Teams' },
   'tools-cost-of-a-bad-hire':{ title: 'Cost of a Bad Hire Calculator (India, ₹)' },

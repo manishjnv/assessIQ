@@ -1,0 +1,118 @@
+---
+// free-aptitude-test/index.astro: hub for the three free no-login aptitude practice sets.
+// The tests run in the web app (see src/data/free-aptitude.ts). No forms, no email, no analytics here.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { freeSets, mixText } from '../../data/free-aptitude';
+
+const site = 'https://assessiq.in';
+
+const faqs = [
+  { q: 'Is the free aptitude test really free?', a: 'Yes. All three sets are free. You do not need to sign up or log in.' },
+  { q: 'Does it ask for my email?', a: 'No. There is no form and no email box. Start the test and see your result at the end.' },
+  { q: 'Where are my answers kept?', a: 'Your answers stay in your browser. We do not collect them on this page.' },
+  { q: 'Is this a real test score?', a: 'No. It is practice only. Use it to find your weak topics before a real test.' },
+  { q: 'How long does each set take?', a: 'Warm-up takes 8 minutes, Campus level takes 10 minutes and Top scorer takes 15 minutes. Each set has 10 questions.' },
+  { q: 'What topics do the sets cover?', a: 'Each set mixes 4 quantitative, 3 logical reasoning and 3 verbal questions.' },
+];
+
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${site}/` },
+    { '@type': 'ListItem', position: 2, name: 'Free Aptitude Test' },
+  ],
+};
+const steps = [
+  'Pick a set. Start with Warm-up if you are not sure.',
+  'Answer 10 questions before the timer ends.',
+  'See your score, the right answers and a short reason for each one.',
+];
+const btn = 'font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2';
+const lnk = 'text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2';
+---
+
+<BaseLayout
+  title="Free Aptitude Test Online, No Login"
+  description="Three free aptitude practice tests with 10 questions each. Quantitative, logical and verbal. No login, no email. Your answers stay in your browser."
+  canonicalPath="/free-aptitude-test"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Free Aptitude Test</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Free aptitude test online
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        Three practice sets, 10 questions each. No login. Your answers stay in your browser.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href={freeSets[0].url} class={btn}>Start Warm-up</a>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-md mb-0">Practice only. It is not a real test score.</p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="sets-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h2 id="sets-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Choose a set</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg">
+        {freeSets.map((s) => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl flex flex-col">
+            <h3 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xs mt-0">{s.title}</h3>
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-md mt-0 font-medium">{s.items} questions &middot; {s.minutes} minutes</p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-md mt-0">{s.blurb}</p>
+            <p class="font-sans text-aiq-sm text-aiq-fg-muted mb-aiq-xl mt-0">{mixText(s)}</p>
+            <div class="mt-auto flex flex-wrap items-center gap-aiq-md">
+              <a href={s.url} class={btn}>Start</a>
+              <a href={`/free-aptitude-test/${s.slug}`} class={lnk}>Details</a>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="how-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h2 id="how-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">How it works</h2>
+      <ol class="list-decimal pl-aiq-xl m-0 max-w-3xl flex flex-col gap-aiq-md font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+        {steps.map((t) => <li>{t}</li>)}
+      </ol>
+      <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mt-aiq-xl mb-0 max-w-3xl">
+        Running a test for a batch or a team? See the <a href="/tests/aptitude" class={lnk}>AssessIQ aptitude test</a> for hiring.
+      </p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Questions</h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        {faqs.map((f, i) => (
+          <div class={i < faqs.length - 1 ? 'border-b border-aiq-border pb-aiq-xl' : ''}>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">{f.q}</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{f.a}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

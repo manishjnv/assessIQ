@@ -30,6 +30,9 @@ for (const file of walk(pagesDir).filter((f) => f.endsWith('.astro'))) {
   dates[route === '/' || route === '' ? '/' : route] = { published: lines.at(-1), modified: lines[0] };
 }
 
+// Dynamic [set].astro pages are skipped above: they share the hub dates.
+for (const set of ['easy', 'medium', 'hard']) dates[`/free-aptitude-test/${set}`] = dates['/free-aptitude-test'];
+
 const sorted = Object.fromEntries(Object.entries(dates).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 writeFileSync(join(root, 'src', 'data', 'page-dates.json'), JSON.stringify(sorted, null, 2) + '\n');
 console.log(`page-dates: wrote ${Object.keys(sorted).length} entries`);

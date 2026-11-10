@@ -1,0 +1,138 @@
+---
+// free-aptitude-test/[set].astro: one page per free set (easy | medium | hard), built at build time.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { freeSets, mixText } from '../../data/free-aptitude';
+
+export function getStaticPaths() {
+  return freeSets.map((s) => ({ params: { set: s.slug }, props: { set: s } }));
+}
+
+const { set } = Astro.props;
+const site = 'https://assessiq.in';
+const path = `/free-aptitude-test/${set.slug}`;
+const others = freeSets.filter((s) => s.slug !== set.slug);
+const letters = ['A', 'B', 'C', 'D'];
+
+const faqs = [
+  { q: `How long is the ${set.title} set?`, a: `It has ${set.items} questions and a ${set.minutes} minute timer. The mix is ${mixText(set)}.` },
+  { q: 'Do I need to log in?', a: 'No. There is no login, no form and no email box.' },
+  { q: 'Where are my answers kept?', a: 'Your answers stay in your browser.' },
+  { q: 'Is this a real test score?', a: 'No. It is practice only. Use it to find your weak topics.' },
+];
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+};
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${site}/` },
+    { '@type': 'ListItem', position: 2, name: 'Free Aptitude Test', item: `${site}/free-aptitude-test` },
+    { '@type': 'ListItem', position: 3, name: set.title },
+  ],
+};
+const btn = 'font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white hover:bg-aiq-accent-hover transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2';
+const lnk = 'font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2';
+---
+
+<BaseLayout
+  title={`Free Aptitude Test: ${set.title}`}
+  description={`Free ${set.title} aptitude practice test: ${set.items} questions in ${set.minutes} minutes. ${mixText(set)}. No login. Answers stay in your browser.`}
+  canonicalPath={path}
+>
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/free-aptitude-test" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Free Aptitude Test</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">{set.title}</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Free aptitude test: {set.title}
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        {set.blurb} {set.items} questions, {set.minutes} minutes. No login.
+      </p>
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a href={set.url} class={btn}>Start the test</a>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-md mb-0">Practice only. It is not a real test score. Your answers stay in your browser.</p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="cover-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h2 id="cover-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">What it covers</h2>
+      <p class="font-sans text-aiq-md text-aiq-fg-secondary mt-0 mb-aiq-3xl">{mixText(set)}.</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-aiq-lg">
+        {set.topics.map((t) => (
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <h3 class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">{t.section}</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{t.list.join(', ')}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  {set.samples.length > 0 && (
+    <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="sample-heading">
+      <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+        <h2 id="sample-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">Two sample questions</h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary mt-0 mb-aiq-3xl">The same kind of question you will see in the test.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-lg">
+          {set.samples.map((q) => (
+            <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+              <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">{q.section}</p>
+              <p class="font-sans text-aiq-md text-aiq-fg-primary leading-relaxed mt-0 mb-aiq-lg">{q.stem}</p>
+              <ul class="list-none m-0 p-0 flex flex-col gap-aiq-sm font-sans text-aiq-md text-aiq-fg-secondary">
+                {q.options.map((o, i) => (
+                  <li class={i === q.correctIndex ? 'text-aiq-accent font-medium' : ''}>{letters[i]}. {o}{i === q.correctIndex ? ' (correct answer)' : ''}</li>
+                ))}
+              </ul>
+              <p class="font-sans text-aiq-sm text-aiq-fg-secondary leading-relaxed mt-aiq-lg mb-0"><span class="font-medium text-aiq-fg-primary">Why: </span>{q.explanation}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">Questions</h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        {faqs.map((f, i) => (
+          <div class={i < faqs.length - 1 ? 'border-b border-aiq-border pb-aiq-xl' : ''}>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">{f.q}</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{f.a}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base" aria-labelledby="other-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h2 id="other-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Other free sets</h2>
+      <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+        {others.map((o) => (
+          <li><a href={`/free-aptitude-test/${o.slug}`} class={lnk}>{o.title}</a> <span class="font-sans text-aiq-sm text-aiq-fg-muted">{o.items} questions, {o.minutes} minutes</span></li>
+        ))}
+        <li><a href="/free-aptitude-test" class={lnk}>All free sets</a></li>
+      </ul>
+    </div>
+  </section>
+</BaseLayout>
