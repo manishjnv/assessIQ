@@ -8,7 +8,7 @@ export function CheckPage(): React.JSX.Element {
   const state = useReadiness(true, false, false);
   return (
     <div className="aiq-screen" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', padding: 24 }}>
-      <Logo />
+      <Logo href="/" />
       <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: '100%', maxWidth: 440 }}>
           <h1 style={{ fontSize: 28, fontWeight: 400, margin: '0 0 12px' }}>Test your device</h1>

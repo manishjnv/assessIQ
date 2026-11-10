@@ -621,7 +621,7 @@ export function TokenLanding(): React.JSX.Element {
           flexDirection: 'column',
         }}
       >
-        <Logo />
+        <Logo href="/" />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <div style={{ width: '100%', maxWidth: 440 }}>{leftContent}</div>
         </div>

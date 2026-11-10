@@ -621,6 +621,20 @@
   opacity: 0.3;
 }
 
+/* Logo as a home link (2026-11-10): same look, no underline, focus ring, 44px tap target on touch. */
+a.aiq-mark {
+  text-decoration: none;
+  border-radius: var(--aiq-radius-sm);
+}
+a.aiq-mark:hover { text-decoration: none; }
+a.aiq-mark:focus-visible {
+  outline: 2px solid var(--aiq-color-accent);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  a.aiq-mark { min-height: 44px; }
+}
+
 /* ───────────────── Grid background (futurism touch) ───────────────── */
 
 .aiq-grid-bg {

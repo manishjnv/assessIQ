@@ -303,7 +303,7 @@ export function Submitted(): React.JSX.Element {
         className="aiq-submitted-header"
         style={{ display: 'flex', alignItems: 'center' }}
       >
-        <Logo />
+        <Logo href="/" />
       </header>
 
       {/* Main centered content */}

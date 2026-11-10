@@ -76,7 +76,7 @@ export function AdminLogin(): React.JSX.Element {
       }}
     >
       <main style={{ width: '100%', maxWidth: 420, padding: '48px 24px' }}>
-        <Logo />
+        <Logo href="/" />
 
         {banner !== null && (
           <div

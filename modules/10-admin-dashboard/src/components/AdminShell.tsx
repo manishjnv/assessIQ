@@ -475,15 +475,11 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                 <Icon name="drag" size={14} />
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => navigate("/admin")}
-              aria-label="AssessIQ — go to dashboard"
+            <a
+              href="/"
+              aria-label="AssessIQ home"
               style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
+                textDecoration: "none",
                 font: "inherit",
                 fontFamily: "var(--aiq-font-mono)",
                 fontSize: "var(--aiq-text-xs)",
@@ -494,7 +490,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
               }}
             >
               AssessIQ
-            </button>
+            </a>
           </div>
           {/* Centre: organisation logo and name (Z-112). */}
           <div style={{ minWidth: 0, justifySelf: "center", maxWidth: "100%" }}>

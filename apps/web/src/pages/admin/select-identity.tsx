@@ -108,7 +108,7 @@ export function AdminSelectIdentity(): React.JSX.Element {
       }}
     >
       <main style={{ width: '100%', maxWidth: 420, padding: '48px 24px' }}>
-        <Logo />
+        <Logo href="/" />
 
         <span style={{ display: 'inline-block', margin: '32px 0 24px' }}>
           <Chip variant="accent">Choose account</Chip>

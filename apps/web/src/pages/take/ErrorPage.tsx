@@ -58,7 +58,7 @@ export function ErrorPage(): React.JSX.Element {
           flexDirection: 'column',
         }}
       >
-        <Logo />
+        <Logo href="/" />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <div style={{ width: '100%', maxWidth: 380 }}>
             <span style={{ display: 'inline-block', marginBottom: 24 }}>

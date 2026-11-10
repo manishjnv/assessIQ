@@ -1,20 +1,19 @@
-// Intro and result screens of the free no-login aptitude tests (/try/aptitude/:set).
+// Intro and result screens of the free no-login tests (/try/:exam/:set).
 // Zero network, no email, no analytics beacon; the only storage is the best score per set in localStorage
-// (try/catch inside freeAptitude.ts). No certificate and no percentile: the result is practice feedback only.
+// (try/catch inside freeTests.ts). No certificate and no percentile: the result is practice feedback only.
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
 import { Button, Card, Chip, Logo, ScoreRing } from '@assessiq/ui-system';
-import { describeAnswer, scoreDemo, type DemoAnswers, type DemoQuestion } from './demoContent';
+import { describeAnswer, scoreFree, type FreeAnswers, type FreeQuestion } from './freeScoring';
 import {
   END_HREF,
-  FREE_SETS,
-  FREE_SLUGS,
-  MIX,
-  SECTION_LABEL,
+  LEVELS,
   bandFor,
   formatClock,
   formatTopic,
+  getExam,
+  itemsPerAttempt,
   paceLine,
   readBest,
   saveBest,
@@ -24,17 +23,17 @@ import {
   whatsappLink,
   type BestScores,
   type FreeSet,
-} from './freeAptitude';
+} from './freeTests';
 
-const EYEBROW: CSSProperties = {
+export const EYEBROW: CSSProperties = {
   fontFamily: 'var(--aiq-font-mono)',
   fontSize: 11,
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
   color: 'var(--aiq-color-fg-muted)',
 };
-const WRAP: CSSProperties = { maxWidth: 760, margin: '0 auto', padding: '16px' };
-const LINK: CSSProperties = {
+export const WRAP: CSSProperties = { maxWidth: 760, margin: '0 auto', padding: '16px' };
+export const LINK: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   minHeight: 44,
@@ -45,33 +44,40 @@ const LINK: CSSProperties = {
   textDecoration: 'none',
   fontSize: 14,
 };
-const PRIMARY_LINK: CSSProperties = { ...LINK, background: 'var(--aiq-color-accent)', color: '#fff', border: 0 };
+export const PRIMARY_LINK: CSSProperties = { ...LINK, background: 'var(--aiq-color-accent)', color: '#fff', border: 0 };
 
-const ORDER = FREE_SLUGS;
+export const H1: CSSProperties = {
+  fontFamily: 'var(--aiq-font-serif)',
+  fontWeight: 400,
+  fontSize: 'clamp(30px, 6vw, 44px)',
+  lineHeight: 1.1,
+  letterSpacing: '-0.02em',
+  margin: '0 0 16px',
+};
+
+const examOf = (set: FreeSet) => getExam(set.exam)!;
+const mixLine = (set: FreeSet): string => set.sections.map((x) => `${x.count} ${x.label.toLowerCase()}`).join(', ');
 
 export function FreeIntro({ set, onBegin }: { set: FreeSet; onBegin: () => void }): React.JSX.Element {
   const [best, setBest] = useState<BestScores>({});
-  useEffect(() => setBest(readBest()), []);
-  const total = MIX.quant + MIX.logical + MIX.verbal;
+  useEffect(() => setBest(readBest(set.exam)), [set.exam]);
+  const exam = examOf(set);
+  const total = itemsPerAttempt(set);
   return (
     <main style={{ ...WRAP, paddingTop: 48 }}>
-      <Logo size={28} showWordmark />
-      <p style={{ ...EYEBROW, marginTop: 40, marginBottom: 8 }}>Free aptitude test &middot; {set.slug}</p>
-      <h1
-        style={{
-          fontFamily: 'var(--aiq-font-serif)',
-          fontWeight: 400,
-          fontSize: 'clamp(30px, 6vw, 44px)',
-          lineHeight: 1.1,
-          letterSpacing: '-0.02em',
-          margin: '0 0 16px',
-        }}
-      >
-        {set.title}: free aptitude test.
+      <Logo size={28} showWordmark href="/" />
+      <p style={{ ...EYEBROW, marginTop: 40, marginBottom: 8 }}>
+        <Link to={`/try/${set.exam}`} style={{ color: 'inherit' }}>
+          Free {exam.title.toLowerCase()} tests
+        </Link>{' '}
+        &middot; {set.slug}
+      </p>
+      <h1 style={H1}>
+        {set.title}: free {exam.title.toLowerCase()} test.
       </h1>
       <p style={{ fontSize: 'var(--aiq-text-lg)', lineHeight: 1.55, color: 'var(--aiq-color-fg-secondary)', margin: '0 0 24px' }}>
-        {total} questions, {set.minutes} minutes: {MIX.quant} quantitative, {MIX.logical} logical, {MIX.verbal} verbal. No
-        login and no email. Your answers stay in your browser.
+        {total} questions, {set.minutes} minutes: {mixLine(set)}. No login and no email. Your answers stay in your
+        browser.
       </p>
       <Card padding="lg">
         <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8, fontSize: 'var(--aiq-text-lg)' }}>
@@ -82,9 +88,9 @@ export function FreeIntro({ set, onBegin }: { set: FreeSet; onBegin: () => void 
       </Card>
       <p style={{ ...EYEBROW, margin: '24px 0 8px' }}>Your best score on this device</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} data-test-id="free-progress">
-        {ORDER.map((s) => (
+        {LEVELS.map((s) => (
           <Chip key={s} {...(s === set.slug ? { variant: 'accent' as const } : {})}>
-            {FREE_SETS[s].title}: {best[s] != null ? `${best[s]}%` : 'not tried'}
+            {exam.sets[s].title}: {best[s] != null ? `${best[s]}%` : 'not tried'}
           </Chip>
         ))}
       </div>
@@ -106,29 +112,30 @@ export function FreeResult({
   onRetry,
 }: {
   set: FreeSet;
-  questions: DemoQuestion[];
-  answers: DemoAnswers;
+  questions: FreeQuestion[];
+  answers: FreeAnswers;
   timedOut: boolean;
   usedSeconds: number;
   onRetry: () => void;
 }): React.JSX.Element {
-  const result = useMemo(() => scoreDemo(answers, questions), [answers, questions]);
-  const sections = useMemo(() => sectionScores(result.rows), [result]);
+  const result = useMemo(() => scoreFree(answers, questions), [answers, questions]);
+  const sections = useMemo(() => sectionScores(set, result.rows), [result]);
   const weakest = useMemo(() => weakestTopic(result.rows), [result]);
   const [best, setBest] = useState<BestScores>({});
-  useEffect(() => setBest(saveBest(set.slug, result.percent)), [set.slug, result.percent]);
+  useEffect(() => setBest(saveBest(set.exam, set.slug, result.percent)), [set.exam, set.slug, result.percent]);
 
   const band = bandFor(result.percent);
   const flags = result.rows.map((r) => r.earned >= r.q.points);
   const text = shareText(set, flags, usedSeconds);
-  const idx = ORDER.indexOf(set.slug);
-  const next = idx < ORDER.length - 1 ? FREE_SETS[ORDER[idx + 1]!] : null;
+  const exam = examOf(set);
+  const idx = LEVELS.indexOf(set.slug);
+  const next = idx < LEVELS.length - 1 ? exam.sets[LEVELS[idx + 1]!] : null;
   const limit = set.minutes * 60;
 
   return (
     <main style={WRAP}>
-      <Logo size={24} showWordmark />
-      <p style={{ ...EYEBROW, marginTop: 32, marginBottom: 8 }}>Free aptitude test &middot; {set.slug} &middot; result</p>
+      <Logo size={24} showWordmark href="/" />
+      <p style={{ ...EYEBROW, marginTop: 32, marginBottom: 8 }}>Free {exam.title.toLowerCase()} test &middot; {set.slug} &middot; result</p>
       <h1 style={{ fontFamily: 'var(--aiq-font-serif)', fontWeight: 400, fontSize: 'var(--aiq-text-2xl)', margin: '0 0 8px' }}>
         {timedOut ? 'Time is up. Here is your score.' : 'Your score'}
       </h1>
@@ -162,14 +169,14 @@ export function FreeResult({
         {sections.map((s) => (
           <div key={s.section}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 4 }}>
-              <span>{SECTION_LABEL[s.section]}</span>
+              <span>{s.label}</span>
               <span>
                 {s.earned / 10} / {s.max / 10}
               </span>
             </div>
             <div
               role="img"
-              aria-label={`${SECTION_LABEL[s.section]} ${s.percent} percent`}
+              aria-label={`${s.label} ${s.percent} percent`}
               style={{ height: 10, borderRadius: 5, background: 'var(--aiq-color-bg-raised)', overflow: 'hidden' }}
             >
               <div style={{ width: `${s.percent}%`, height: '100%', background: 'var(--aiq-color-accent)' }} />
@@ -214,13 +221,16 @@ export function FreeResult({
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, margin: '32px 0 8px' }}>
         {next && (
-          <Link to={`/try/aptitude/${next.slug}`} style={PRIMARY_LINK} data-test-id="free-next">
+          <Link to={`/try/${set.exam}/${next.slug}`} style={PRIMARY_LINK} data-test-id="free-next">
             Next: {next.title} test
           </Link>
         )}
         <Button variant="outline" onClick={onRetry}>
           Try again
         </Button>
+        <Link to={`/try/${set.exam}`} style={LINK} data-test-id="free-levels">
+          All levels
+        </Link>
         <a href={END_HREF} style={next ? LINK : PRIMARY_LINK} data-test-id="free-end">
           Bring this to your batch
         </a>

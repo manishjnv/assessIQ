@@ -170,10 +170,10 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
         }}
       >
         {/* Left — AssessIQ mark, small and muted (Z-112). */}
-        <div
+        <a
           className="aiq-mark"
-          role="img"
-          aria-label="AssessIQ"
+          href="/"
+          aria-label="AssessIQ home"
           style={{
             fontSize: 'var(--aiq-text-sm)',
             fontWeight: 500,
@@ -185,7 +185,7 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
         >
           <span className="aiq-mark-dot" aria-hidden="true" />
           <span>AssessIQ</span>
-        </div>
+        </a>
 
         {/* Centre — organisation logo and name (Z-112). Z-113: no "via AssessIQ" caption here. */}
         <div style={{ justifySelf: 'center', minWidth: 0, maxWidth: '100%' }}>

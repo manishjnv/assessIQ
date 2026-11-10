@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router';
-import { ThemeProvider, TENANT_FIXTURES, accentBranding } from '@assessiq/ui-system';
+import { ThemeProvider, Logo, TENANT_FIXTURES, accentBranding } from '@assessiq/ui-system';
 import { AdminLogin } from './pages/admin/login';
 import { AdminSelectIdentity } from './pages/admin/select-identity';
 import { CandidateLogin } from './pages/candidate/CandidateLogin';
@@ -72,6 +72,8 @@ const TokenLanding = lazy(() => import('./pages/take/TokenLanding').then(m => ({
 
 const CheckPage = lazy(() => import('./pages/check/Check').then(m => ({ default: m.CheckPage })));
 const TryPage = lazy(() => import('./pages/try/Try').then(m => ({ default: m.TryPage })));
+const ExamPickerPage = lazy(() => import('./pages/try/FreePickers').then(m => ({ default: m.ExamPickerPage })));
+const LevelPickerPage = lazy(() => import('./pages/try/FreePickers').then(m => ({ default: m.LevelPickerPage })));
 const TryCertificatePage = lazy(() => import('./pages/try/TryCertificate').then(m => ({ default: m.TryCertificatePage })));
 
 const tenant = TENANT_FIXTURES['default'];
@@ -257,9 +259,10 @@ export function App(): React.JSX.Element {
           <Route path="/check" element={<CheckPage />} />
 
           {/* Public demo (no RequireSession, no API calls). Needs /try + /try/* in the Caddy @app matcher. */}
-          <Route path="/try" element={<TryPage />} />
-          <Route path="/try/aptitude/:set" element={<TryPage />} />
+          <Route path="/try" element={<ExamPickerPage />} />
           <Route path="/try/certificate" element={<TryCertificatePage />} />
+          <Route path="/try/:exam" element={<LevelPickerPage />} />
+          <Route path="/try/:exam/:set" element={<TryPage />} />
 
           <Route path="*" element={<NotFound />} />
           </Routes>
@@ -308,6 +311,9 @@ function NotFound(): React.JSX.Element {
         background: 'var(--aiq-color-bg-base)',
       }}
     >
+      <div style={{ marginBottom: 24 }}>
+        <Logo href="/" />
+      </div>
       <div
         style={{
           fontFamily: 'var(--aiq-font-mono)',

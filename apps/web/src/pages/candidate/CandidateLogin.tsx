@@ -212,7 +212,7 @@ export function CandidateLogin(): React.JSX.Element {
           flexDirection: 'column',
         }}
       >
-        <Logo />
+        <Logo href="/" />
 
         <div
           className="aiq-candidate-login-body"

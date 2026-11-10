@@ -19,6 +19,8 @@ export interface AttemptTopBarProps {
   setNavOpen: Dispatch<SetStateAction<boolean>>;
   /** Logo L3a: organisation co-branding; empty name + null url renders nothing. */
   companyName?: string;
+  /** Home link for the AssessIQ mark. Unset on the live timed attempt (no accidental exit); the free runner passes "/". */
+  logoHref?: string;
   companyLogoUrl?: string | null;
   /** Z-167: display preferences (theme, text size, organisation display). */
   prefs: TakePrefs;
@@ -33,6 +35,8 @@ export interface AttemptTopBarProps {
   finishDisabled?: boolean;
   /** UAT 2026-10-29: full screen is set by the org or the assessment; then no student toggle. */
   fullscreenEnforced?: boolean;
+  /** Free no-login test: a small chip (for example "Practice") shown before the timer. Optional, absent on the real take page. */
+  badge?: React.ReactNode;
 }
 
 const shortId = (id: string | undefined): string => (id ?? "").replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -160,8 +164,8 @@ export function OrgBadge(props: { url: string | null; name: string; nameBeside: 
 export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
   const {
     sec, wholeTestSectionName, attempt, isLastSection, handleExpire,
-    refreshAfterSectionChange, autosave, setNavOpen, companyName = "", companyLogoUrl = null,
-    prefs, setPrefs, candidateName, candidateId, assessmentName, assessmentId, onFinish, finishDisabled = false, fullscreenEnforced = false,
+    refreshAfterSectionChange, autosave, setNavOpen, companyName = "", companyLogoUrl = null, logoHref,
+    prefs, setPrefs, candidateName, candidateId, assessmentName, assessmentId, onFinish, finishDisabled = false, fullscreenEnforced = false, badge,
   } = props;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -182,7 +186,7 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
   const candLabel = candidateName ?? `STU-${shortId(candidateId)}`;
   return (
   <header className="aiq-attempt-top" style={TOP_BAR}>
-    <Logo />
+    <Logo {...(logoHref !== undefined ? { href: logoHref } : {})} />
     {hasOrg && (
       <>
         <span className="aiq-take-divider aiq-take-hide-900" aria-hidden="true" />
@@ -224,6 +228,8 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
     )}
 
     <span style={{ flex: 1 }} />
+
+    {badge}
 
     {sec?.calculator === true && <Calculator data-help-id="candidate.attempt.calculator" />}
 

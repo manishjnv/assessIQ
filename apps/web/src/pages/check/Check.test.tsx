@@ -47,6 +47,11 @@ afterEach(() => {
 });
 
 describe('CheckPage (/check)', () => {
+  it('AssessIQ logo is a home link to /', () => {
+    renderCheck();
+    expect(screen.getByRole('link', { name: 'AssessIQ home' }).getAttribute('href')).toBe('/');
+  });
+
   it('shows the result list and "Your device is ready." with no Begin button and no camera row', async () => {
     renderCheck();
     expect(await screen.findByText('Your device is ready.')).toBeTruthy();

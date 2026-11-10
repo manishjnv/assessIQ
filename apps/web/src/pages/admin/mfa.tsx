@@ -335,7 +335,7 @@ export function AdminMfa(): React.JSX.Element {
           </Card>
         </main>
         <footer style={{ ...META_LABEL, padding: '16px 32px', display: 'flex', gap: 16, borderTop: '1px solid var(--aiq-color-border)' }}>
-          <span>AssessIQ</span>
+          <a href="/" aria-label="AssessIQ home" style={{ color: "inherit", textDecoration: "none" }}>AssessIQ</a>
           <span style={{ flex: 1 }} />
           <span>Two-step sign-in</span>
         </footer>
@@ -614,7 +614,7 @@ export function AdminMfa(): React.JSX.Element {
           borderTop: '1px solid var(--aiq-color-border)',
         }}
       >
-        <span>AssessIQ</span>
+        <a href="/" aria-label="AssessIQ home" style={{ color: "inherit", textDecoration: "none" }}>AssessIQ</a>
         <span style={{ flex: 1 }} />
         <span>Two-step sign-in</span>
       </footer>

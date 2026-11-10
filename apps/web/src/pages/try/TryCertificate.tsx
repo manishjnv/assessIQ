@@ -1,4 +1,4 @@
-// Static SAMPLE certificate for the /try demo — styled like the real public
+// Static SAMPLE certificate (no link from the free tests since the demo purge 2026-11-10; the route stays) — styled like the real public
 // verify page (modules/18-certification routes-public.ts) but fixed content,
 // watermarked, no lookup, no network. Lives at /try/certificate, NOT /verify/*
 // (that prefix is routed to the API at the edge).
@@ -131,7 +131,7 @@ export function TryCertificatePage(): React.JSX.Element {
         ))}
         <p style={{ margin: '1.5rem 0 0', fontSize: '.9rem' }}>
           <Link to="/try" style={{ color: 'var(--aiq-color-accent)', fontWeight: 600 }}>
-            Back to the sample assessment
+            Back to the free tests
           </Link>
         </p>
       </div>

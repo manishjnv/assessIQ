@@ -7,6 +7,7 @@ type Story = StoryObj<typeof Logo>;
 
 export const Default: Story = { args: {} };
 export const MarkOnly: Story = { args: { showWordmark: false } };
+export const HomeLink: Story = { args: { href: "/" } };
 export const Sizes: Story = {
   render: () => (
     <div style={{ display: "flex", gap: 24, alignItems: "center" }}>

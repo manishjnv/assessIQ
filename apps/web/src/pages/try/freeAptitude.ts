@@ -1,44 +1,20 @@
 // PUBLIC FREE APTITUDE SET: never import these items into a platform pack.
 // The three free no-login tests at /try/aptitude/easy|medium|hard. Fixed bundled content, client-side scoring,
 // ZERO network (no api.ts, no fetch, no email, no analytics beacon). Every item is marked origin 'free_public':
-// the stems are public the moment this bundle ships, so freeAptitude.test.ts fails if one matches a real pack.
+// the stems are public the moment this bundle ships, so the overlap test fails if one matches a real pack.
 // Easy = v1 level 1 and Medium = v1 level 2 (the retired, already public v1 set; Q-045 and Q-050 dropped as
 // arguable). Hard = engine items from the reserved public seed range k 900,000+ plus hand-written verbal items.
 // Plan: docs/private/aptitude-generator/out/FREE_SET_PLAN.md (gitignored).
+// This file is DATA only. The registry (freeTests.ts) holds the exam entry that points here.
 
-import type { DemoQuestion } from './demoContent';
+import type { FreeExam, PoolItem } from './freeTypes';
 
-export type Section = 'quant' | 'logical' | 'verbal';
-export type FreeSlug = 'easy' | 'medium' | 'hard';
-
-export interface PoolItem {
-  id: string;
-  section: Section;
-  topic: string;
-  prompt: string;
-  options: string[];
-  correct: number;
-  why: string;
-  /** Hard engine items only: template id and the numbers of the stem (the overlap test compares them with the real pool). */
-  tpl?: string;
-  nums?: number[];
-}
-
-export interface FreeSet {
-  slug: FreeSlug;
-  title: string;
-  minutes: number;
-  /** Platform difficulty level (easy 1, medium 3, hard 5). */
-  level: 1 | 3 | 5;
-  pool: PoolItem[];
-}
-
-export const SECTIONS: Section[] = ['quant', 'logical', 'verbal'];
-/** Items drawn per attempt for each section. */
-export const MIX: Record<Section, number> = { quant: 4, logical: 3, verbal: 3 };
-export const SECTION_LABEL: Record<Section, string> = { quant: 'Quantitative', logical: 'Logical', verbal: 'Verbal' };
-export const POINTS_PER_ITEM = 10;
-export const FREE_ORIGIN = 'free_public' as const;
+/** Items drawn per attempt: 4 quantitative + 3 logical + 3 verbal. */
+const SECTIONS = [
+  { id: 'quant', label: 'Quantitative', count: 4 },
+  { id: 'logical', label: 'Logical', count: 3 },
+  { id: 'verbal', label: 'Verbal', count: 3 },
+];
 
 const EASY_POOL: PoolItem[] = [
   {"id": "e-001", "section": "quant", "topic": "percentages", "prompt": "What is 35% of 240?", "options": ["72", "96", "84", "78"], "correct": 2, "why": "35% of 240 = 35 × 240 ÷ 100 = 8400 ÷ 100 = 84."},
@@ -120,152 +96,14 @@ const HARD_POOL: PoolItem[] = [
 // HARD_END
 
 
-export const FREE_SETS: Record<FreeSlug, FreeSet> = {
-  easy: { slug: 'easy', title: 'Warm-up', minutes: 8, level: 1, pool: EASY_POOL },
-  medium: { slug: 'medium', title: 'Campus level', minutes: 10, level: 3, pool: MEDIUM_POOL },
-  hard: { slug: 'hard', title: 'Top scorer', minutes: 15, level: 5, pool: HARD_POOL },
+
+export const APTITUDE: FreeExam = {
+  slug: 'aptitude',
+  title: 'Aptitude',
+  blurb: 'Quantitative, logical and verbal questions for campus and placement tests.',
+  sets: {
+    easy: { exam: 'aptitude', slug: 'easy', title: 'Warm-up', minutes: 8, level: 1, sections: SECTIONS, pool: EASY_POOL },
+    medium: { exam: 'aptitude', slug: 'medium', title: 'Campus level', minutes: 10, level: 3, sections: SECTIONS, pool: MEDIUM_POOL },
+    hard: { exam: 'aptitude', slug: 'hard', title: 'Top scorer', minutes: 15, level: 5, sections: SECTIONS, pool: HARD_POOL },
+  },
 };
-
-export const FREE_SLUGS = Object.keys(FREE_SETS) as FreeSlug[];
-
-export const isFreeSlug = (s: string | undefined): s is FreeSlug =>
-  s != null && Object.prototype.hasOwnProperty.call(FREE_SETS, s);
-
-/** Where the end button goes. true = SIGNUP_ENABLED is true on the API (checked on the VPS 2026-11-10); set false to send people to /contact. */
-export const SIGNUP_OPEN = true;
-export const END_HREF = SIGNUP_OPEN ? '/signup?src=try' : '/contact?src=try';
-export const LANDING_URL = 'https://assessiq.in/free-aptitude-test';
-
-/** Random draw of 4 quantitative + 3 logical + 3 verbal for one attempt (Fisher-Yates; `rng` is injectable for tests). */
-export function drawSet(set: FreeSet, rng: () => number = Math.random): DemoQuestion[] {
-  const out: DemoQuestion[] = [];
-  for (const s of SECTIONS) {
-    const items = set.pool.filter((i) => i.section === s);
-    for (let i = items.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      [items[i], items[j]] = [items[j]!, items[i]!];
-    }
-    for (const it of items.slice(0, MIX[s])) out.push(toDemoQuestion(it));
-  }
-  return out;
-}
-
-export function toDemoQuestion(it: PoolItem): DemoQuestion {
-  return {
-    id: it.id,
-    type: 'mcq',
-    typeLabel: SECTION_LABEL[it.section],
-    prompt: it.prompt,
-    options: it.options,
-    correct: it.correct,
-    points: POINTS_PER_ITEM,
-    modelAnswer: it.options[it.correct]!,
-    why: it.why,
-    section: it.section,
-    topic: it.topic,
-    origin: FREE_ORIGIN,
-  };
-}
-
-export function bandFor(percent: number): string {
-  if (percent >= 90) return 'Top scorer';
-  if (percent >= 70) return 'Placement-ready';
-  if (percent >= 40) return 'Getting there';
-  return 'Build the basics';
-}
-
-export interface SectionScore {
-  section: Section;
-  earned: number;
-  max: number;
-  percent: number;
-}
-
-export function sectionScores(rows: { q: DemoQuestion; earned: number }[]): SectionScore[] {
-  return SECTIONS.map((section) => {
-    const mine = rows.filter((r) => r.q.section === section);
-    const max = mine.reduce((s, r) => s + r.q.points, 0);
-    const earned = mine.reduce((s, r) => s + r.earned, 0);
-    return { section, earned, max, percent: max === 0 ? 0 : Math.round((earned / max) * 100) };
-  }).filter((s) => s.max > 0);
-}
-
-/** Topic with the lowest score (ties: the first seen). Null when every topic is fully right. */
-export function weakestTopic(rows: { q: DemoQuestion; earned: number }[]): string | null {
-  const t = new Map<string, { earned: number; max: number }>();
-  for (const r of rows) {
-    const k = r.q.topic;
-    if (!k) continue;
-    const e = t.get(k) ?? { earned: 0, max: 0 };
-    e.earned += r.earned;
-    e.max += r.q.points;
-    t.set(k, e);
-  }
-  let worst: string | null = null;
-  let worstRatio = 1;
-  for (const [k, v] of t) {
-    const ratio = v.max === 0 ? 1 : v.earned / v.max;
-    if (ratio < worstRatio) {
-      worst = k;
-      worstRatio = ratio;
-    }
-  }
-  return worst;
-}
-
-export const formatTopic = (t: string): string => t.replace(/[_-]/g, ' ');
-
-export function formatClock(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-}
-
-/** One line on pace, from the accuracy and the share of the time limit used. */
-export function paceLine(percent: number, usedSeconds: number, limitSeconds: number): string {
-  const fast = usedSeconds <= limitSeconds * 0.6;
-  if (fast && percent < 60) return 'Fast but careless: slow down and check each option.';
-  if (!fast && percent >= 70) return 'Accurate but slow: practise speed on the topics you know.';
-  if (fast && percent >= 70) return 'Fast and accurate.';
-  return 'Pace is fine: work on accuracy.';
-}
-
-/** Plain text for WhatsApp: headline plus an emoji row (one square per item, in order) and the landing link. */
-export function shareText(set: FreeSet, correctFlags: boolean[], usedSeconds: number): string {
-  const right = correctFlags.filter(Boolean).length;
-  const percent = Math.round((right / correctFlags.length) * 100);
-  const grid = correctFlags.map((ok) => (ok ? '🟩' : '🟥')).join('');
-  return `AssessIQ ${set.title} aptitude test: ${right}/${correctFlags.length} in ${formatClock(usedSeconds)} (${bandFor(percent)})\n${grid}\nTry it free, no login: ${LANDING_URL}/${set.slug}?src=wa`;
-}
-
-export const whatsappLink = (text: string): string => `https://wa.me/?text=${encodeURIComponent(text)}`;
-
-// Best score per set stays in this browser only. localStorage can be blocked: every access is try/catch.
-
-const BEST_KEY = 'aiq-free-aptitude-best';
-export type BestScores = Partial<Record<FreeSlug, number>>;
-
-export function readBest(): BestScores {
-  try {
-    const raw = window.localStorage.getItem(BEST_KEY);
-    const v = (raw ? JSON.parse(raw) : {}) as Record<string, unknown>;
-    const out: BestScores = {};
-    for (const s of FREE_SLUGS) {
-      const n = v[s];
-      if (typeof n === 'number' && Number.isFinite(n)) out[s] = n;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-export function saveBest(slug: FreeSlug, percent: number): BestScores {
-  const cur = readBest();
-  if (cur[slug] == null || percent > cur[slug]!) cur[slug] = percent;
-  try {
-    window.localStorage.setItem(BEST_KEY, JSON.stringify(cur));
-  } catch {
-    /* blocked storage: the score is just not remembered */
-  }
-  return cur;
-}

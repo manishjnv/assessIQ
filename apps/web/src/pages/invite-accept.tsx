@@ -193,7 +193,7 @@ export function InviteAccept(): React.JSX.Element {
           borderTop: '1px solid var(--aiq-color-border)',
         }}
       >
-        <span>AssessIQ</span>
+        <a href="/" aria-label="AssessIQ home" style={{ color: "inherit", textDecoration: "none" }}>AssessIQ</a>
         <span style={{ flex: 1 }} />
         <span>Single-use link · valid 7 days</span>
       </footer>
