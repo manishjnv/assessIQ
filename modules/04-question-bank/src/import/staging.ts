@@ -10,6 +10,7 @@ import type {
   ParseResult, RowError,
 } from "./types.js";
 import { assertUploadWithinPlan } from "./plan-limits.js";
+import { assertValidMath } from "../assets/rich-validate.js";
 import { loadTaxonomyIndex, normalisedTextHash, normaliseText, parseV2, type TaxonomyIndex } from "./v2.js";
 
 // ---------------------------------------------------------------------------
@@ -89,6 +90,19 @@ export function validateRow(row: number, cells: Record<string, string>): { norma
     if (content === null) {
       for (const i of firstIssues) err(String(i.path[0] ?? "content"), i.message);
     }
+  }
+  // Maths (EXP-10): optional `math` cell. true = the text holds LaTeX in \( \) or \[ \]; it must parse in KaTeX (the
+  // same check as the editor). A blank cell with LaTeX marks in the text is an error, so raw TeX never shows to a student.
+  if (content !== null) {
+    const m = (cells["math"] ?? "").trim().toLowerCase();
+    if (m !== "" && !["true", "false", "1", "0", "yes", "no"].includes(m)) err("math", "math must be true or false");
+    else if (["true", "1", "yes"].includes(m)) {
+      content = { ...content, math: true };
+      try { assertValidMath(content); } catch (e) {
+        const list = (e as { details?: { errors?: Array<{ field: string; message: string }> } }).details?.errors ?? [];
+        for (const x of list.length > 0 ? list : [{ field: "math", message: (e as Error).message }]) err("math", `${x.field}: ${x.message}`);
+      }
+    } else if (/\\[(\[]/.test(JSON.stringify(content).replace(/\\\\/g, "\\"))) err("math", "the text has LaTeX marks but math is not true");
   }
   if (errors.length > 0 || content === null) return { normalized: null, errors };
   return { normalized: { type, topic, points, level, negative_marks, content }, errors };

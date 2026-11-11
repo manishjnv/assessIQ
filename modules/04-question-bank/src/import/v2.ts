@@ -9,7 +9,7 @@ import type { RowError, RowMeta } from "./types.js";
 export const V2_COLUMNS = [
   "exam_stage", "subject_path", "style", "difficulty", "difficulty_scale", "rights_status", "origin",
   "source_ref", "source_url", "seed_ref", "language", "pyq_year", "pyq_shift",
-  "passage_ref", "passage_text",
+  "passage_ref", "passage_text", "math",
 ] as const;
 
 /** 'withdrawn' is a takedown state set by the withdraw route; it is never importable. */
