@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { CliError, commitRun, dryRun, parseArgs, type Args, type Deps } from "../aiq-import-csv.js";
+import { validateRow } from "../../modules/04-question-bank/src/import/staging.js";
 
 const HEAD = "type,topic,question,seed_ref";
 const csv = (...rows: string[]): Buffer => Buffer.from([HEAD, ...rows].join("\n"), "utf8");
@@ -229,5 +230,34 @@ describe("commitRun", () => {
   it("exit 1 when the tenant has no active admin", async () => {
     const d = fakes({ "a.csv": csv() }, { resolveAdmin: async () => null });
     await expect(commitRun(args({ commit: true }), d)).rejects.toMatchObject({ exitCode: 1 });
+  });
+});
+
+describe("dryRun with the real row validator (math column, R2)", () => {
+  const MHEAD = "type,topic,points,level,question,options,correct,rationale,seed_ref,math";
+  const mrow = (q: string, n: number, math: string): string =>
+    [`mcq`, `Maths`, `1`, `1`, `"${q.replace(/"/g, '""')}"`, `"[""1"",""2"",""3"",""4""]"`, `2`, `r`, ref(n), math].join(",");
+  const real = (): Deps => fakes({}, {
+    readFile: async () => Buffer.from([MHEAD,
+      mrow("Find \\(x\\) if \\(2x = 6\\).", 1, "true"),
+      mrow("Find \\(\\frac{1}{\\) now", 2, "true"),
+      mrow("Find \\(x\\) if \\(2x = 6\\).", 3, ""),
+    ].join("\n"), "utf8"),
+    preview: async (_t, _m, parsed) => ({
+      rows: parsed.rows.map((r) => {
+        const v = validateRow(r.row, r.cells);
+        return { row: r.row, decision: v.errors.length > 0 ? "error" : "ok", errors: v.errors, dupScope: null };
+      }),
+    }),
+  });
+
+  it("passes a math=true row with TeX, fails malformed TeX and TeX without math=true", async () => {
+    const { report, exitCode } = await dryRun(args(), real());
+    expect(exitCode).toBe(3);
+    expect(report.files[0]).toMatchObject({ rows: 3, ok: 1, errors: 2 });
+    const cols = report.row_errors.map((e) => `${e.row}:${e.column}`).sort();
+    expect(cols).toEqual(["3:math", "4:math"]);
+    expect(report.row_errors.find((e) => e.row === 3)!.message).toMatch(/maths does not parse/);
+    expect(report.row_errors.find((e) => e.row === 4)!.message).toBe("the text has LaTeX marks but math is not true");
   });
 });
