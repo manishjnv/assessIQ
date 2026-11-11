@@ -416,6 +416,7 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 - **Why.** EX-3 only had steps inside one `structured_case` question. Exams need one stem for several separate, separately scored rows. `structured_case` stays as is.
 - **Considered, rejected.** Putting the passage text into `question_versions.content` (needs a change in every snapshot writer, and doubles the text per child). Mutable passages with a text copy on each `attempt_questions` row (more storage; immutable rows give the same freeze).
 - **Not included.** Images (EXP-10), AI grading of passages, an edit screen (edit = new row + repoint), `has_passage` filter, re-sync of a changed link on an existing clone.
+- **Import `math` column (2026-11-11).** The CSV importer (`tools/aiq-import-csv.ts`, commit aa9928d1) reads an optional `math` column; `true` sets `content.math` and runs the KaTeX save-time check at import. No schema change. See `docs/03-api-contract.md` "Import: math column".
 - **Downstream.** 06 draws passages whole (see its SKILL). 11/apps/web show the passage above the stem.
 
 ## EXP-17 organisation upload and Z-52 gap 5 (2026-10-19)
