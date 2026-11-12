@@ -685,6 +685,16 @@ candidate.shell.logo:
 
     This logo shows the organisation that invited you to the assessments listed here. AssessIQ runs the platform on their behalf.
 
+candidate.take.language:
+  audience: candidate
+  short_text: "Read the questions in English or in Hindi. Your answers stay the same."
+  long_md: |
+    ## Question language
+
+    - Choose English or हिन्दी. The choice applies to this attempt and is saved.
+    - Your answer counts the same in both languages.
+    - If a question has no Hindi text, you see the English text and a short note.
+
 candidate.take.structured_case.child_marks:
   audience: candidate
   short_text: "Marks for a right answer and marks taken away for a wrong one on this question."

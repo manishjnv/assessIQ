@@ -37,6 +37,8 @@ export interface AttemptTopBarProps {
   fullscreenEnforced?: boolean;
   /** Free no-login test: a small chip (for example "Practice") shown before the timer. Optional, absent on the real take page. */
   badge?: React.ReactNode;
+  /** EXP-9 A4: English | Hindi switch. Undefined (no question has a Hindi overlay) hides it. */
+  language?: { value: "en" | "hi"; onPick: (l: "en" | "hi") => void; busy?: boolean } | undefined;
 }
 
 const shortId = (id: string | undefined): string => (id ?? "").replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -73,6 +75,15 @@ function Segments<T extends string>(props: {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function LanguageToggle(props: { value: "en" | "hi"; onPick: (l: "en" | "hi") => void; busy?: boolean }): React.JSX.Element {
+  return (
+    <div data-help-id="candidate.take.language" className="aiq-take-seg" role="group" aria-label="Question language" style={{ margin: 0, flexShrink: 0 }}>
+      <button type="button" aria-pressed={props.value === "en"} disabled={props.busy === true} onClick={() => props.onPick("en")}>English</button>
+      <button type="button" lang="hi" aria-pressed={props.value === "hi"} disabled={props.busy === true} onClick={() => props.onPick("hi")}>हिन्दी</button>
     </div>
   );
 }
@@ -165,7 +176,7 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
   const {
     sec, wholeTestSectionName, attempt, isLastSection, handleExpire,
     refreshAfterSectionChange, autosave, setNavOpen, companyName = "", companyLogoUrl = null, logoHref,
-    prefs, setPrefs, candidateName, candidateId, assessmentName, assessmentId, onFinish, finishDisabled = false, fullscreenEnforced = false, badge,
+    prefs, setPrefs, candidateName, candidateId, assessmentName, assessmentId, onFinish, finishDisabled = false, fullscreenEnforced = false, badge, language,
   } = props;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -263,6 +274,7 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
       lastSavedAt={autosave.lastSavedAt}
       retryCount={autosave.retryCount}
     />
+    {language !== undefined && <LanguageToggle value={language.value} onPick={language.onPick} busy={language.busy === true} />}
     <DisplaySettings prefs={prefs} setPrefs={setPrefs} />
     {!fullscreenEnforced && <FullscreenToggle />}
     {onFinish !== undefined && (

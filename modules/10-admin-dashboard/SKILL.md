@@ -240,3 +240,7 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 - **Assessment detail:** no red entitlement pre-warning any more (the page cannot see clone lineage, domain scope or the internal tier that the server accepts); the neutral note stays, and a real refusal shows as the publish error. The entitlement fetch was removed from the page.
 - **Invitations:** `InvitationsSection` takes `isDraft`; on a draft there are no invite controls and the text is "Publish this assessment to invite students."
 - **Sections editor:** the "countdown not shipped" note is gone. Not changed: two help texts that repeat the old advice (row Z-187).
+
+## EXP-9 A6 Hindi filter and preview
+- Pack question list: "Hindi text" facet (`admin.question_bank.pack.filter_hindi`) in `QuestionFilterBar.tsx`, same select pattern as the other facets.
+- `QuestionContentView` `McqView`: when `content.i18n.hi.question` exists, an English | हिन्दी switch (`admin.question_editor.hindi_preview`) swaps the read-only preview; `lang="hi"` on Hindi text; same correct index; mismatched option counts keep English and show a warning. No editing. Fonts: system Devanagari fallback only.

@@ -4,6 +4,7 @@ import { csvCell } from "@assessiq/core";
 import { getQuestionType, type QuestionType } from "@assessiq/question-types";
 import type { ImportFormat } from "./types.js";
 import { V2_COLUMNS } from "./v2.js";
+import { HI_COLUMNS } from "./staging.js";
 
 /** Columns every type shares; the rest come from the registry's importColumns. EXP-4 adds the v2 columns. */
 export const COMMON_COLUMNS = ["type", "topic", "points", "level", "negative_marks", ...V2_COLUMNS] as const;
@@ -13,9 +14,10 @@ const V2_EXAMPLE = ["", "", "", "", "", "original", "", "", "", "", "en", "", ""
 
 export function templateRows(type: QuestionType): { header: string[]; example: string[] } {
   const cols = getQuestionType(type).importColumns;
+  const hi = type === "mcq"; // EXP-9 A3: optional Hindi columns, blank in the sample row so a copied template never imports sample Hindi
   return {
-    header: [...COMMON_COLUMNS, ...cols.map((c) => c.key)],
-    example: [type, "Example topic", "1", "1", "", ...V2_EXAMPLE, ...cols.map((c) => (c.required ? "replace me" : ""))],
+    header: [...COMMON_COLUMNS, ...cols.map((c) => c.key), ...(hi ? HI_COLUMNS : [])],
+    example: [type, "Example topic", "1", "1", "", ...V2_EXAMPLE, ...cols.map((c) => (c.required ? "replace me" : "")), ...(hi ? ["", "", ""] : [])],
   };
 }
 

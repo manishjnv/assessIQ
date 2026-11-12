@@ -310,6 +310,11 @@ html.aiq-take-root body {
   flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.5;
   font-family: var(--aiq-font-sans); font-size: calc(15.5px * var(--aiq-take-fs, 1)); color: var(--aiq-color-fg-primary);
 }
+/* EXP-9 A4: Hindi text uses the self-hosted Devanagari face (loaded on first use). These selectors must stay AFTER and
+   stronger than the stem and option rules above, which set their own font-family. */
+.aiq-take-root [lang="hi"],
+.aiq-take-root .aiq-attempt-q-text[lang="hi"],
+.aiq-take-root [lang="hi"] .aiq-take-opt-text { font-family: "Noto Sans Devanagari", var(--aiq-font-sans); }
 .aiq-take-radio {
   width: 22px; height: 22px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
   border: 1.5px solid var(--aiq-color-border-strong);

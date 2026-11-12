@@ -9,7 +9,8 @@
 //  - No content editing. Read-only.
 //  - Never crashes on malformed content — each section falls back independently.
 
-import React from "react";
+import React, { useState } from "react";
+import { HelpTip } from "@assessiq/help-system/components";
 import { isQuestionType, type QuestionType } from "@assessiq/question-types";
 import { MathText } from "@assessiq/ui-system";
 import { StructuredCaseView } from "./StructuredCaseView.js";
@@ -112,7 +113,22 @@ function cleanText(s: string): string {
 
 const OPTION_LABELS = ["A", "B", "C", "D", "E", "F"];
 
-function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
+/** EXP-9 A6: the Hindi overlay as a content object, or "mismatch" when the option counts differ. */
+function hindiOverlay(c: Record<string, unknown>): Record<string, unknown> | "mismatch" | null {
+  const hi = obj(obj(c.i18n)?.hi);
+  const stem = safeStr(hi?.question);
+  if (hi === null || stem === null || stem.trim() === "") return null;
+  const ho = safeArr<unknown>(hi.options);
+  const eo = safeArr<unknown>(c.options);
+  if (ho === null || eo === null || ho.length !== eo.length) return "mismatch";
+  return { ...c, question: stem, options: ho, rationale: safeStr(hi.rationale) ?? undefined };
+}
+
+function McqView({ c: english }: { c: Record<string, unknown> }): React.ReactElement {
+  const [lang, setLang] = useState<"en" | "hi">("en");
+  const overlay = hindiOverlay(english);
+  const showHi = lang === "hi" && overlay !== null && overlay !== "mismatch";
+  const c = showHi ? (overlay as Record<string, unknown>) : english;
   const question = safeStr(c.question);
   const options = safeArr<unknown>(c.options);
   // mcq: correct is one index; multi_select: an array of indexes.
@@ -127,15 +143,39 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
   const stemIds = (safeArr<unknown>(c.stem_assets) ?? []).filter((x): x is string => typeof x === "string");
   const optIds = safeArr<unknown>(c.option_assets) ?? [];
 
+  const hiProps = showHi ? { lang: "hi" } : {};
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+      {overlay !== null && (
+        <HelpTip helpId="admin.question_editor.hindi_preview">
+          <span role="group" aria-label="Preview language" style={{ display: "inline-flex", gap: "var(--aiq-space-xs)" }}>
+            {([["en", "English"], ["hi", "हिन्दी"]] as const).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={lang === k}
+                lang={k === "hi" ? "hi" : undefined}
+                className={`aiq-btn aiq-btn-sm ${lang === k ? "aiq-btn-primary" : "aiq-btn-outline"}`}
+                onClick={() => setLang(k)}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
+        </HelpTip>
+      )}
+      {overlay === "mismatch" && (
+        <span role="alert" style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-danger)" }}>
+          Hindi options do not match the English options.
+        </span>
+      )}
       {multi && (
         <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
           Select all that apply · scoring: {c.scoring === "partial" ? "partial credit" : "all or nothing"}
         </span>
       )}
       {question != null ? (
-        <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+        <p {...hiProps} style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
           {show(question)}
         </p>
       ) : (
@@ -187,6 +227,7 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
                   {isCorrect ? " ✓" : ""}
                 </span>
                 <span
+                  {...hiProps}
                   style={{
                     fontFamily: "var(--aiq-font-sans)",
                     fontSize: "var(--aiq-text-sm)",
@@ -211,6 +252,7 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
 
       {rationale != null && (
         <div
+          {...hiProps}
           style={{
             padding: "var(--aiq-space-sm)",
             borderLeft: "3px solid var(--aiq-color-border, #e5e7eb)",

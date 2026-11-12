@@ -662,9 +662,10 @@ export async function findQuestionById(
 /** Facet keys a filter belongs to; a facet's own filter is left out of its own counts. */
 type FilterKey =
   | "type" | "status" | "origin" | "rights_status" | "review_state" | "language"
-  | "difficulty" | "has_solution" | "stage" | "subject" | "unit" | "outcome";
+  | "difficulty" | "has_solution" | "has_hindi" | "stage" | "subject" | "unit" | "outcome";
 
 const HAS_SOLUTION_SQL = `(btrim(coalesce(q.content->>'rationale', '')) <> '')`;
+const HAS_HINDI_SQL = `(btrim(coalesce(q.content #>> '{i18n,hi,question}', '')) <> '')`;
 const NODE_KINDS = ["stage", "subject", "unit", "outcome"] as const;
 
 interface BuiltWhere {
@@ -732,6 +733,9 @@ function buildQuestionWhere(filters: ListQuestionsInput, exclude?: FilterKey, fo
   }
   if (filters.has_solution !== undefined && exclude !== "has_solution") {
     conditions.push(filters.has_solution ? HAS_SOLUTION_SQL : `NOT ${HAS_SOLUTION_SQL}`);
+  }
+  if (filters.has_hindi !== undefined && exclude !== "has_hindi") {
+    conditions.push(filters.has_hindi ? HAS_HINDI_SQL : `NOT ${HAS_HINDI_SQL}`);
   }
   // Not a facet (no counts), so it is never excluded. q.passage_id is set by migration 0211.
   if (filters.has_passage !== undefined) {
@@ -873,6 +877,7 @@ export async function questionFacetCounts(
     language: await bucket("language", `q.language_primary`),
     difficulty: await bucket("difficulty", `coalesce(q.difficulty_est::text, 'none')`),
     has_solution: await bucket("has_solution", `(${HAS_SOLUTION_SQL})::text`),
+    has_hindi: await bucket("has_hindi", `(${HAS_HINDI_SQL})::text`),
     stage: await nodes("stage"),
     subject: await nodes("subject"),
     unit: await nodes("unit"),

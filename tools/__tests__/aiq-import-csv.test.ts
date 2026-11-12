@@ -261,3 +261,24 @@ describe("dryRun with the real row validator (math column, R2)", () => {
     expect(report.row_errors.find((e) => e.row === 4)!.message).toBe("the text has LaTeX marks but math is not true");
   });
 });
+
+describe("dryRun with the real row validator (Hindi columns, EXP-9 A3)", () => {
+  const HHEAD = "type,topic,points,level,question,options,correct,rationale,seed_ref,question_hi,options_hi,rationale_hi";
+  const hrow = (n: number, optsHi: string): string =>
+    [`mcq`, `T`, `1`, `1`, `Q?`, `"[""a"",""b"",""c"",""d""]"`, `2`, `r`, ref(n), `नमूना प्रश्न 1`, `"${optsHi.replace(/"/g, '""')}"`, ``].join(",");
+  it("passes matching Hindi options and fails a count mismatch on options_hi", async () => {
+    const deps = fakes({}, {
+      readFile: async () => Buffer.from([HHEAD, hrow(1, '["क","ख","ग","घ"]'), hrow(2, '["क","ख"]')].join(String.fromCharCode(10)), "utf8"),
+      preview: async (_t, _m, parsed) => ({
+        rows: parsed.rows.map((r) => {
+          const v = validateRow(r.row, r.cells);
+          return { row: r.row, decision: v.errors.length > 0 ? "error" : "ok", errors: v.errors, dupScope: null };
+        }),
+      }),
+    });
+    const { report, exitCode } = await dryRun(args(), deps);
+    expect(exitCode).toBe(3);
+    expect(report.files[0]).toMatchObject({ rows: 2, ok: 1, errors: 1 });
+    expect(report.row_errors.map((e) => `${e.row}:${e.column}`)).toEqual(["3:options_hi"]);
+  });
+});

@@ -356,3 +356,10 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 - **Considered and rejected.** Keeping a student org toggle with a better default (still a setting nobody needs). Removing the full screen gate (the exit is recorded and the timer runs on; the gate is the enforcement). Reading the accent in the browser from the session (a token candidate has no session). Disabling Prev/Next on an empty filter (the owner saw both greyed).
 - **Not included.** Org colour on the admin screens (already follows the session accent). Email-only candidate login (RW-78, owner re-opens after 100%). Putting the org code in the invitation email: asked by the owner on 2026-10-29, decision open.
 - **Downstream.** `docs/03-api-contract.md` (`company_accent`), module 06 SKILL, module 11 SKILL, `docs/13-email-system.md`, RCA log. Tests: web take 112, module 06 571, module 13 338 (invitation snapshots updated on purpose).
+
+## EXP-9 A4 language toggle (2026-11-12)
+
+- **What.** The take top bar shows "English | हिन्दी" (`LanguageToggle` in `AttemptTopBar`, help id `candidate.take.language`) only when some question has `content.i18n.hi`. The choice calls `PATCH /api/me/attempts/:id/language` (`setAttemptLanguage` in `api.ts`), flips at once, and reverts with an inline alert on failure. `attempt.language` sets the start state.
+- **Render.** `attempt-parts/language.ts` `localize()` swaps the stem and options for the Hindi ones (same display order, so answers keep the English index) and drops the overlay and any rationale. A question with no overlay shows English and "This question is available in English only." Hindi text sits under `lang="hi"`.
+- **Font.** `@fontsource/noto-sans-devanagari` (devanagari subset, 400 and 600), dynamic import on first Hindi use, served from our own origin. No CSP change.
+- **Not included.** Per-question memory, a third language, admin setting, machine translation.

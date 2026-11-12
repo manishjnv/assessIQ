@@ -4877,6 +4877,14 @@ admin.question_editor.math:
     - **Size.** At most 500 characters in one formula.
     - **Candidates.** The formulas load only on questions that have the switch on. If a formula cannot be drawn, the candidate sees the formula text.
 
+admin.question_editor.hindi_preview:
+  audience: admin
+  short_text: "Switch the preview between the English and the Hindi text."
+  long_md: |
+    ## Hindi preview
+
+    This switch shows only when the question has a Hindi version. Pick हिन्दी to read the Hindi question, options and explanation. The correct option stays the same in both languages. You cannot edit the Hindi text here.
+
 admin.tenant_settings.candidate_answer_key:
   audience: admin
   version: 1
@@ -5217,6 +5225,17 @@ admin.question_bank.pack.filter_language:
     ## Language
 
     Pick the main language of the question, for example en for English or hi for Hindi.
+
+admin.question_bank.pack.filter_hindi:
+  audience: admin
+  short_text: "Show only questions that have, or lack, a Hindi version."
+  long_md: |
+    ## Hindi text
+
+    Pick Has Hindi to see English questions that carry an added Hindi version. Pick No Hindi to see the others.
+
+    - **Language** is the main language the question is written in.
+    - **Hindi text** is an extra Hindi version added to an English question. The English question stays the main one.
 
 admin.question_bank.pack.filter_solution:
   audience: admin

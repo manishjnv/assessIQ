@@ -168,7 +168,7 @@ export function parseQuestionFilters(q: Record<string, string | undefined>): Omi
   if (review) f.review_state = review;
   const language = parseList(q, "language", null);
   if (language) f.language = language;
-  for (const key of ["has_solution", "has_passage"] as const) {
+  for (const key of ["has_solution", "has_passage", "has_hindi"] as const) {
     const v = q[key];
     if (v === undefined || v === "") continue;
     if (v !== "true" && v !== "false") badParam(key, "must be true or false");

@@ -504,3 +504,16 @@ Platform packs are readable by a licensed tenant through `licensed_read` SELECT 
 - **Similarity:** Jaccard over word 3-grams (Unicode aware, Hindi works). A1 rejects at or above 0.35 to any seed. A2 needs 0.40 up to under 0.97 to its own source and rejects 0.85 or more against the platform bank. Constants live at the top of the gate file; tune them only with a measured sample.
 - **Seeds:** passed in per run by the VPS side, held in memory, never stored here. Exam content, seeds and skill text never enter git (see "Exam content is never committed").
 - **Not wired:** module 07 has no runtime hook for the skill `gen-exam-items` yet, so the route answers 501 `EXAMGEN_RUNTIME_NOT_WIRED` and no AI call is possible. No wizard mode selector yet. The route is synchronous (no detached polling) until the hook exists.
+
+## EXP-9 A6 Hindi facet
+- `has_hindi` (true/false) on the question list and `/facets`: true = `content #>> '{i18n,hi,question}'` is non-blank. AND-combined; the facet ignores its own filter. Facets reply gains `has_hindi: [{value:"true"|"false",count}]`.
+- Different from the `language` facet, which filters the column `questions.language_primary` (the main language). No index, no migration (JSONB path scan within the pack filter).
+- Tests: `__tests__/exp9-hindi-facet.test.ts` (Postgres testcontainer).
+
+
+## EXP-9 A3 Hindi import columns
+- Optional MCQ columns `question_hi`, `options_hi` (JSON array, same style as `options`), `rationale_hi`. All blank: no `i18n` key, file imports as before.
+- Any Hindi cell filled: `question_hi` required; `options_hi` must have the same count and order as `options` (row error on `options_hi` otherwise). `rationale_hi` optional.
+- Written to `content.i18n.hi = { question, options, rationale }` and checked by the real `McqContentSchema`. `correct` stays an English index.
+- Non-MCQ row with a Hindi cell: row error. The MCQ template carries the three columns last, blank in the sample row.
+- `assertValidMath` (`assets/rich-validate.ts`) walks `i18n.hi`, so Hindi text gets the KaTeX and deny-list checks when `math` is true. The duplicate hash (`import/v2.ts` `leaves`) skips `i18n`: the import cannot add Hindi to an existing question (it is a duplicate). Export (`export.ts`) does not round-trip the Hindi columns.

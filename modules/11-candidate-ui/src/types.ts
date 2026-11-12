@@ -29,6 +29,8 @@ export interface AttemptWire {
   submitted_at: string | null;
   duration_seconds: number | null;
   created_at: string;
+  /** EXP-9: reading language; absent on older servers (reads as en). */
+  language?: "en" | "hi";
 }
 
 export interface AttemptAnswerWire {

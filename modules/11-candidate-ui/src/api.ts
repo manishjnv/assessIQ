@@ -172,6 +172,17 @@ export async function toggleFlag(
   );
 }
 
+/** EXP-9 A4: set the reading language of this attempt (en or hi). */
+export async function setAttemptLanguage(
+  attemptId: string,
+  language: "en" | "hi",
+): Promise<{ language: "en" | "hi" }> {
+  return call<{ language: "en" | "hi" }>(
+    `/me/attempts/${encodeURIComponent(attemptId)}/language`,
+    { method: "PATCH", body: JSON.stringify({ language }) },
+  );
+}
+
 /** EXP-28: tell the platform a question looks wrong or unclear. Goes to the review queue only; the test is not changed. */
 export async function reportQuestion(
   attemptId: string,

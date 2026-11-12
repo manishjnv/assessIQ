@@ -333,6 +333,8 @@ export interface ListQuestionsInput {
   has_solution?: boolean;
   /** EXP-6 tail / 0211: true = the question belongs to a passage; false = it stands alone. */
   has_passage?: boolean;
+  /** EXP-9 A6: true = content.i18n.hi.question is non-empty; false = no Hindi overlay. */
+  has_hindi?: boolean;
 }
 
 /** EXP-5: one facet bucket. */
@@ -348,6 +350,7 @@ export interface QuestionFacets {
   language: FacetCount[];
   difficulty: FacetCount[];     // "1".."5" and "none"
   has_solution: FacetCount[];   // "true" / "false"
+  has_hindi: FacetCount[];      // "true" / "false" (EXP-9 A6)
   stage: FacetNodeCount[];
   subject: FacetNodeCount[];
   unit: FacetNodeCount[];

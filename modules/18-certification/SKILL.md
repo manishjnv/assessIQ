@@ -581,3 +581,9 @@ The public verify page prints Issued and Revoked dates with `formatIst()`. The J
 ## Valid-until day in IST (Z-188, S87, 2026-11-01)
 
 `display.ts` `expiryState` shows the Indian calendar day ("9 Nov 2026"); valid or expired is still decided by instant. The verify page uses `formatIstOr` for Issued and Revoked, so an unreadable date shows raw and the page still renders. Not changed: signed certificate data, JSON-LD, the JSON API, and the PDF issued date (row Z-189).
+
+## EXP-9 A5 Hindi text in the certificate PDF (2026-11-12)
+- `src/pdf/template.ts`: the two text font stacks (`FONT_SERIF`, `FONT_SANS`) now name `'Noto Sans Devanagari'` before the generic family, so a Hindi name, title or organisation renders in that face. Latin text is unchanged (the Latin faces come first).
+- The PDF is drawn by headless Chromium, which shapes Devanagari itself. The font comes from `fonts-noto-core` in the api image (`infra/docker/assessiq-api/Dockerfile`); no font file is in the repo and no Dockerfile change was needed.
+- The LinkedIn and OG image path already handled Devanagari (`routes-public.ts`, `DEVANAGARI_FONT`).
+- Test: `src/__tests__/pdf-devanagari.test.ts`. On a Windows dev machine Chromium falls back to Nirmala UI; the Noto face is checked on the server.

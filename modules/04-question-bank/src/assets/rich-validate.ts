@@ -16,6 +16,12 @@ function fieldsOf(content: Record<string, unknown>): Array<[string, string]> {
   if (Array.isArray(content["options"])) {
     (content["options"] as unknown[]).forEach((o, i) => { if (typeof o === "string") out.push([`options[${i}]`, o]); });
   }
+  // EXP-9: the Hindi overlay holds the same kind of text, so it gets the same checks.
+  const i18n = content["i18n"];
+  const hi = i18n !== null && typeof i18n === "object" ? (i18n as Record<string, unknown>)["hi"] : undefined;
+  if (hi !== null && typeof hi === "object" && !Array.isArray(hi)) {
+    for (const [k, v] of fieldsOf(hi as Record<string, unknown>)) out.push([`i18n.hi.${k}`, v]);
+  }
   return out;
 }
 

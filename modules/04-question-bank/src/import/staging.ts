@@ -38,6 +38,9 @@ export function contentHash(type: string, content: unknown): string {
   return sha256Hex(`${type}\n${stableJson(content)}`);
 }
 
+/** EXP-9 A3 optional Hindi columns (mcq only); written to content.i18n.hi. */
+export const HI_COLUMNS = ["question_hi", "options_hi", "rationale_hi"] as const;
+
 export function validateRow(row: number, cells: Record<string, string>): { normalized: NormalizedRow | null; errors: RowError[] } {
   const errors: RowError[] = [];
   const err = (column: string, message: string): void => { errors.push({ row, column, message }); };
@@ -89,6 +92,24 @@ export function validateRow(row: number, cells: Record<string, string>): { norma
     }
     if (content === null) {
       for (const i of firstIssues) err(String(i.path[0] ?? "content"), i.message);
+    }
+  }
+  // Hindi overlay (EXP-9 A3): optional question_hi / options_hi (JSON array) / rationale_hi, mcq only. All blank = no i18n key.
+  const hiCells = HI_COLUMNS.map((c) => (cells[c] ?? "").trim());
+  if (hiCells.some((t) => t !== "")) {
+    if (type !== "mcq") err(HI_COLUMNS[hiCells.findIndex((t) => t !== "")]!, "Hindi columns are supported for mcq rows only");
+    else if (content !== null) {
+      const [qHi, oHi, rHi] = hiCells as [string, string, string];
+      const nEn = (content["options"] as unknown[]).length;
+      const opts = oHi === "" ? [] : cellValue(oHi, false);
+      if (qHi === "") err("question_hi", "question_hi is required when a Hindi column is filled");
+      if (!Array.isArray(opts)) err("options_hi", "options_hi must be a JSON array of Hindi options");
+      else if (opts.length !== nEn) err("options_hi", `Hindi options must match the English options: ${nEn} English, ${opts.length} Hindi`);
+      else if (qHi !== "") {
+        const p = def.contentSchema.safeParse({ ...content, i18n: { hi: { question: qHi, options: opts, ...(rHi !== "" ? { rationale: rHi } : {}) } } });
+        if (p.success) content = p.data as Record<string, unknown>;
+        else for (const i of p.error.issues) err(i.path[0] === "i18n" ? (i.path[2] === "options" ? "options_hi" : i.path[2] === "rationale" ? "rationale_hi" : "question_hi") : String(i.path[0] ?? "content"), i.message);
+      }
     }
   }
   // Maths (EXP-10): optional `math` cell. true = the text holds LaTeX in \( \) or \[ \]; it must parse in KaTeX (the

@@ -49,6 +49,7 @@ export {
   getAttempt,
   saveAnswer,
   toggleFlag,
+  setAttemptLanguage,
   reportQuestion,
   finishSection,
   recordPosition,

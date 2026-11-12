@@ -35,8 +35,10 @@ const TIER_ACCENT: Record<string, string> = {
   honors: '#7c3aed',
 };
 
-const FONT_SERIF = "Newsreader, Georgia, 'Times New Roman', serif";
-const FONT_SANS = 'Geist, Helvetica, Arial, sans-serif';
+// EXP-9 A5: 'Noto Sans Devanagari' (fonts-noto-core in the api image) is named in the
+// text stacks so Hindi name, title and organisation pick it per glyph; Chromium shapes it.
+const FONT_SERIF = "Newsreader, Georgia, 'Times New Roman', 'Noto Sans Devanagari', serif";
+const FONT_SANS = "Geist, Helvetica, Arial, 'Noto Sans Devanagari', sans-serif";
 const FONT_MONO = "'JetBrains Mono', 'Courier New', monospace";
 
 // ---------------------------------------------------------------------------

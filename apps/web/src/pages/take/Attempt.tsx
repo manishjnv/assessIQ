@@ -26,7 +26,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Navigate } from "react-router";
 import { useOrgAccent } from "./useOrgAccent.js";
 import { Button, Drawer, Icon, Modal, Spinner } from "@assessiq/ui-system";
-import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError, neighbor, filterSuffix, NavCollapseHandle } from "@assessiq/candidate-ui";
+import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, setAttemptLanguage, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError, neighbor, filterSuffix, NavCollapseHandle } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire, NavigatorFilter } from "@assessiq/candidate-ui";
 import { isQuestionType } from "@assessiq/question-types";
 import { STEM_FIELD, TYPE_LABEL, type PageState, hasForbiddenSynonym, BOTTOM_BAR, SR_ONLY, KBD_HINT, isAnsweredValue } from "./attempt-parts/shared.js";
@@ -44,6 +44,7 @@ import { useCameraCapture } from "./useCameraCapture.js";
 import { CameraIndicator, CameraLostOverlay } from "./CameraIndicator.js";
 import { QuestionCountdown } from "./attempt-parts/QuestionCountdown.js";
 import { ProgressRow } from "./attempt-parts/ProgressRow.js";
+import { hasHindi, loadHindiFont, localize, type Lang } from "./attempt-parts/language.js";
 import { useTakePrefs } from "./attempt-parts/takePrefs.js";
 import "./take-theme.css";
 export { isAnsweredValue } from "./attempt-parts/shared.js";
@@ -91,6 +92,24 @@ export function AttemptPage(): React.JSX.Element {
   const [timeUpIds, setTimeUpIds] = useState<Set<string>>(new Set());
   const [pendingLeave, setPendingLeave] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false); // EXP-28
+  // EXP-9 A4: reading language of this attempt (server value on load; the toggle saves it).
+  const [lang, setLang] = useState<Lang>('en');
+  const [langError, setLangError] = useState<string | null>(null);
+  const [langBusy, setLangBusy] = useState(false); // one save at a time, so two quick clicks cannot land out of order
+  function pickLanguage(next: Lang): void {
+    if (next === lang || langBusy) return;
+    const prev = lang;
+    setLangError(null);
+    setLang(next);
+    setLangBusy(true);
+    if (next === 'hi') loadHindiFont();
+    setAttemptLanguage(attemptId, next)
+      .catch(() => {
+        setLang(prev);
+        setLangError('Could not change the language. Try again.');
+      })
+      .finally(() => setLangBusy(false));
+  }
   const markTimeUp = useCallback((qid: string): void => {
     setTimeUpIds((prev) => (prev.has(qid) ? prev : new Set(prev).add(qid)));
   }, []);
@@ -174,6 +193,10 @@ export function AttemptPage(): React.JSX.Element {
         }
 
         setPageState({ tag: 'ready', view });
+        if (view.attempt.language === 'hi') {
+          setLang('hi');
+          loadHindiFont();
+        }
 
         // LocalStorage backup check. Per contract: Phase 1 does NOT auto-restore
         // (too risky without UX confirmation). Phase 2 will add an explicit prompt.
@@ -425,6 +448,10 @@ export function AttemptPage(): React.JSX.Element {
   const safeIdx = currentIdx < 0 ? 0 : currentIdx;
   const currentQuestion = sorted[safeIdx] ?? null;
   const isLast = safeIdx === sorted.length - 1;
+  // EXP-9 A4: same question, Hindi stem and options when chosen and present. Answers stay in the English index space.
+  const shown = currentQuestion !== null ? localize(currentQuestion, lang) : null;
+  const inHindi = lang === 'hi' && currentQuestion !== null && hasHindi(currentQuestion);
+  const anyHindi = sorted.some(hasHindi); // no Hindi anywhere: no toggle and no "English only" note
 
   // Test sections (absent for ordinary tests: everything below then behaves as before).
   const sec = view.sections;
@@ -682,6 +709,7 @@ export function AttemptPage(): React.JSX.Element {
         onFinish={isLastSection && !summaryOpen ? () => setSummaryOpen(true) : undefined}
         finishDisabled={locked || submitting}
         fullscreenEnforced={integrityCfg?.fullscreen === true}
+        language={anyHindi ? { value: lang, onPick: pickLanguage, busy: langBusy } : undefined}
       />
 
       {/* ── PROGRESS STRIP + LOCK NOTICE ─────────────────────────────── */}
@@ -698,6 +726,11 @@ export function AttemptPage(): React.JSX.Element {
           </div>
         )}
         {lockedBanner}
+        {langError !== null && (
+          <p role="alert" style={{ margin: 0, padding: 'var(--aiq-space-sm) var(--aiq-space-2xl)', fontFamily: 'var(--aiq-font-sans)', fontSize: 14, color: 'var(--aiq-color-danger)' }}>
+            {langError}
+          </p>
+        )}
       </section>
       <CameraLostOverlay state={camera.state} onRetry={camera.retry} />
 
@@ -818,14 +851,14 @@ export function AttemptPage(): React.JSX.Element {
                    is rendered by AnswerArea. */}
               {(() => {
                 if (hasForbiddenSynonym(currentQuestion.content)) return null;
-                const c = currentQuestion.content as Record<string, unknown>;
+                const c = shown!.content as Record<string, unknown>;
                 const field = isQuestionType(currentQuestion.type) ? STEM_FIELD[currentQuestion.type] : 'question';
                 const text = typeof c[field] === 'string' ? (c[field] as string) : null;
                 if (text === null) return null;
                 return (
                   <>
-                    <p className="aiq-serif aiq-attempt-q-text">
-                      <RichText q={currentQuestion} text={text} />
+                    <p className="aiq-serif aiq-attempt-q-text" {...(inHindi ? { lang: 'hi' } : {})}>
+                      <RichText q={shown!} text={text} />
                     </p>
                     <StemImages q={currentQuestion} />
                   </>
@@ -868,14 +901,21 @@ export function AttemptPage(): React.JSX.Element {
                 </p>
               )}
 
-              <AnswerArea
-                key={`${currentQuestion.question_id}:${clearNonce}`}
-                question={currentQuestion}
-                answer={answers.get(currentQuestion.question_id) ?? null}
-                disabled={locked || timeUpIds.has(currentQuestion.question_id)}
-                onAnswerChange={handleAnswerChange}
-                onBlur={handleAnswerBlur}
-              />
+              {lang === 'hi' && anyHindi && !inHindi && (
+                <p className="aiq-take-hint" role="status" style={{ margin: '0 0 var(--aiq-space-sm)' }}>
+                  This question is available in English only.
+                </p>
+              )}
+              <div {...(inHindi ? { lang: 'hi' } : {})}>
+                <AnswerArea
+                  key={`${currentQuestion.question_id}:${clearNonce}`}
+                  question={shown!}
+                  answer={answers.get(currentQuestion.question_id) ?? null}
+                  disabled={locked || timeUpIds.has(currentQuestion.question_id)}
+                  onAnswerChange={handleAnswerChange}
+                  onBlur={handleAnswerBlur}
+                />
+              </div>
               </div>
             </div>
           ) : (

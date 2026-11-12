@@ -9,7 +9,7 @@ import { humanize } from "../../lib/labels.js";
 export type QuestionFilters = {
   [K in
     | "q" | "stage_id" | "subject_id" | "unit_id" | "outcome_id" | "difficulty_min" | "difficulty_max"
-    | "origin" | "rights_status" | "review_state" | "language" | "has_solution" | "has_passage"]?: string | undefined;
+    | "origin" | "rights_status" | "review_state" | "language" | "has_solution" | "has_passage" | "has_hindi"]?: string | undefined;
 };
 
 interface Bucket { value: string; count: number }
@@ -17,7 +17,7 @@ interface NodeBucket { node_id: string; label: string; count: number }
 interface Facets {
   total: number;
   origin: Bucket[]; rights_status: Bucket[]; review_state: Bucket[]; language: Bucket[];
-  difficulty: Bucket[]; has_solution: Bucket[];
+  difficulty: Bucket[]; has_solution: Bucket[]; has_hindi: Bucket[];
   stage: NodeBucket[]; subject: NodeBucket[]; unit: NodeBucket[]; outcome: NodeBucket[];
 }
 
@@ -146,6 +146,16 @@ export function QuestionFilterBar(props: {
             <option value="">All</option>
             <option value="true">With solution ({countOf(f?.has_solution ?? [], "true")})</option>
             <option value="false">Without solution ({countOf(f?.has_solution ?? [], "false")})</option>
+          </select>
+        </label>
+      </HelpTip>
+      <HelpTip helpId="admin.question_bank.pack.filter_hindi">
+        <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: "var(--aiq-text-xs)" }}>
+          Hindi text
+          <select style={fieldStyle} value={value.has_hindi ?? ""} onChange={(e) => set("has_hindi", e.target.value)}>
+            <option value="">All</option>
+            <option value="true">Has Hindi ({countOf(f?.has_hindi ?? [], "true")})</option>
+            <option value="false">No Hindi ({countOf(f?.has_hindi ?? [], "false")})</option>
           </select>
         </label>
       </HelpTip>

@@ -33,7 +33,7 @@ function leaves(v: unknown, out: string[]): void {
   else if (Array.isArray(v)) for (const x of v) leaves(x, out);
   else if (v !== null && typeof v === "object") {
     const o = v as Record<string, unknown>;
-    for (const k of Object.keys(o).sort()) if (k !== "rationale") leaves(o[k], out);
+    for (const k of Object.keys(o).sort()) if (k !== "rationale" && k !== "i18n") leaves(o[k], out); // i18n: a Hindi overlay never changes the duplicate hash (EXP-9)
   }
 }
 
