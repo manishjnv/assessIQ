@@ -96,6 +96,10 @@ describe("retagBySeedPrefix", () => {
     expect(done.totals).toMatchObject({ matched: 3, changed: 3, skippedNotInFromNode: 0 });
     for (const q of [a!, b!, c3!]) expect((await links(q)).sort()).toEqual([toId, stageNode].sort());
     expect((await links(g!)).sort()).toEqual([fromId, stageNode].sort());
+    const audit = await sup(async (c) => (await c.query(`SELECT after FROM audit_log WHERE tenant_id=$1 AND action='question.updated' AND after->>'kind'='taxonomy_retag' AND after->>'seed_prefix'='coord.x@'`, [tP])).rows);
+    expect(audit).toHaveLength(1);
+    expect(audit[0].after.count).toBe(3);
+    expect([...audit[0].after.question_ids].sort()).toEqual([a!, b!, c3!].sort());
 
     const again = await retagBySeedPrefix(ctx(), { moves: [mv("coord.x@")], dryRun: false });
     expect(again.totals.changed).toBe(0);
@@ -125,5 +129,53 @@ describe("retagBySeedPrefix", () => {
     expect(r.totals).toMatchObject({ changed: 1, clonesChanged: 1 });
     expect((await links(cl!)).sort()).toEqual([toId, stageNode].sort());
     expect(await links(m!)).toEqual([toId]);
+    const audit = await sup(async (c) => (await c.query(`SELECT tenant_id, after FROM audit_log WHERE after->>'kind'='taxonomy_retag_clones' AND after->>'seed_prefix'='cl.q@'`)).rows);
+    expect(audit).toHaveLength(1);
+    expect(audit[0].tenant_id).toBe(tA);
+    expect(audit[0].after).toMatchObject({ count: 1, clone_question_ids: [cl!] });
+  });
+
+  it("rejects fromNode == toNode, an archived target, a non-platform ctx and a non-super-admin role", async () => {
+    await expect(retagBySeedPrefix(ctx(), { moves: [mv("same.x@", FROM, FROM)] })).rejects.toThrow(/same node/);
+    await sup((c) => c.query(`UPDATE taxonomy_nodes SET status='archived' WHERE id=$1`, [toId]));
+    try { await expect(retagBySeedPrefix(ctx(), { moves: [mv("arch.x@")] })).rejects.toThrow(/archived/); }
+    finally { await sup((c) => c.query(`UPDATE taxonomy_nodes SET status='active' WHERE id=$1`, [toId])); }
+    await expect(retagBySeedPrefix({ tenantId: tA, userId: userP, role: "admin" }, { moves: [mv("x.y@")] })).rejects.toThrow(/platform/);
+    await expect(retagBySeedPrefix({ tenantId: tP, userId: userP, role: "admin" }, { moves: [mv("x.y@")] })).rejects.toThrow();
+  });
+
+  it("leaves another tenant's non-clone question with the same seed_ref alone", async () => {
+    const [o] = await mkRows(tA, "retag-other", ["own.q@1"], [fromId]);
+    const [m] = await mkRows(tP, "retag-own", ["own.q@1"], [fromId]);
+    await retagBySeedPrefix(ctx(), { moves: [mv("own.q@")], dryRun: false });
+    expect(await links(m!)).toEqual([toId]);
+    expect(await links(o!)).toEqual([fromId]);
+  });
+
+  it("treats _ and % as literal and does not let tw.x@ hit tw2.x@", async () => {
+    const [u1, u2, t1, t2] = await mkRows(tP, "retag-like", ["a_b.x@1", "aXb.x@1", "tw.x@1", "tw2.x@1"], [fromId]);
+    const r1 = await retagBySeedPrefix(ctx(), { moves: [mv("a_b.x@"), mv("tw.x@"), mv("%.x@")], dryRun: false });
+    expect(r1.moves.map((m) => m.changed)).toEqual([1, 1, 0]);
+    expect(await links(u1!)).toEqual([toId]);
+    expect(await links(u2!)).toEqual([fromId]);
+    expect(await links(t1!)).toEqual([toId]);
+    expect(await links(t2!)).toEqual([fromId]);
+  });
+
+  it("clone stays without includeClones, and clones of a skipped or a withdrawn master stay with it", async () => {
+    const [m1] = await mkRows(tP, "retag-c1", ["cx.a@1"], [fromId]);
+    const [c1] = await mkRows(tA, "retag-c1-clone", ["cx.a@1"], [fromId], m1!);
+    const [m2] = await mkRows(tP, "retag-c2", ["cx.b@1"], [stageNode]); // master in neither fromNode nor toNode
+    const [c2] = await mkRows(tA, "retag-c2-clone", ["cx.b@1"], [fromId], m2!);
+    const [m3] = await mkRows(tP, "retag-c3", ["cx.c@1"], [toId]);
+    const [c3] = await mkRows(tA, "retag-c3-clone", ["cx.c@1"], [fromId], m3!);
+    await sup((c) => c.query(`UPDATE question_source SET rights_status='withdrawn' WHERE question_id=$1`, [m3]));
+    await retagBySeedPrefix(ctx(), { moves: [mv("cx.a@")], dryRun: false });
+    expect(await links(c1!)).toEqual([fromId]); // includeClones false
+    const r = await retagBySeedPrefix(ctx(), { moves: [mv("cx.a@"), mv("cx.b@"), mv("cx.c@")], dryRun: false, includeClones: true });
+    expect(r.moves.map((m) => m.clonesChanged)).toEqual([1, 0, 0]);
+    expect(await links(c1!)).toEqual([toId]);
+    expect(await links(c2!)).toEqual([fromId]);
+    expect(await links(c3!)).toEqual([fromId]);
   });
 });

@@ -7,8 +7,13 @@
  * the same way tools/aiq-import-csv.ts does (same config, same platform tenant, oldest active super_admin).
  *
  * Usage:
- *   pnpm tsx tools/aiq-retag.ts --moves moves.json [--pack <slug>]... [--include-clones] [--commit]
+ *   pnpm tsx tools/aiq-retag.ts --moves moves.json [--pack <slug>]... [--include-clones] [--commit [--expect <n>]]
  *   pnpm tsx tools/aiq-retag.ts --node-diff
+ *
+ * End every prefix with "@<digits>:" (e.g. "coord.distance_integer@1:"): "coord.x@1" would also match "coord.x@10:".
+ * --expect <n> (needs --commit): first runs the dry run and refuses (exit 3, nothing written) when the master
+ * would-change total differs from n. Two transactions: masters first, then (with --include-clones) the clones.
+ * If the clone step fails the master result is printed, the tool says so and exits 4; re-run to finish the clones.
  *
  * moves.json: [{ "seedPrefix": "coord.distance_integer@", "fromNode": "quant/geometry/lines-and-angles",
  *                "toNode": "quant/geometry/coordinate-geometry" }]
@@ -21,26 +26,43 @@ import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import subjectMap from "../modules/04-question-bank/src/frameworks/subject-map.json" with { type: "json" };
 
-export const USAGE = "Usage: pnpm tsx tools/aiq-retag.ts --moves <file.json> [--pack <slug>]... [--include-clones] [--commit] | --node-diff";
+export const USAGE = "Usage: pnpm tsx tools/aiq-retag.ts --moves <file.json> [--pack <slug>]... [--include-clones] [--commit [--expect <n>]] | --node-diff  (end prefixes like coord.distance_integer@1:)";
 
-interface Args { moves: string; packs: string[]; includeClones: boolean; commit: boolean; nodeDiff: boolean }
+interface Args { moves: string; packs: string[]; includeClones: boolean; commit: boolean; expect: number | null; nodeDiff: boolean }
 class CliError extends Error { constructor(public readonly exitCode: number, m: string) { super(m); } }
 
 export function parseArgs(argv: string[]): Args {
-  const a: Args = { moves: "", packs: [], includeClones: false, commit: false, nodeDiff: false };
+  const a: Args = { moves: "", packs: [], includeClones: false, commit: false, expect: null, nodeDiff: false };
   for (let i = 0; i < argv.length; i++) {
     const x = argv[i]!;
     if (x === "--commit") a.commit = true;
     else if (x === "--include-clones") a.includeClones = true;
     else if (x === "--node-diff") a.nodeDiff = true;
-    else if (x === "--moves" || x === "--pack") {
+    else if (x === "--moves" || x === "--pack" || x === "--expect") {
       const v = argv[++i];
       if (v === undefined || v.startsWith("--")) throw new CliError(5, `${x} requires a value.\n${USAGE}`);
-      if (x === "--moves") a.moves = v; else a.packs.push(v);
+      if (x === "--moves") a.moves = v;
+      else if (x === "--expect") {
+        if (!/^[0-9]+$/.test(v)) throw new CliError(5, `--expect needs a whole number.\n${USAGE}`);
+        a.expect = Number(v);
+      } else a.packs.push(v);
     } else throw new CliError(5, `unknown argument '${x}'.\n${USAGE}`);
   }
   if (!a.nodeDiff && a.moves === "") throw new CliError(5, `--moves <file> is required.\n${USAGE}`);
+  if (a.expect !== null && !a.commit) throw new CliError(5, `--expect only works together with --commit.\n${USAGE}`);
   return a;
+}
+
+export function checkMoves(x: unknown): Array<{ seedPrefix: string; fromNode: string; toNode: string }> {
+  const bad = (m: string) => new CliError(3, `moves file: ${m}`);
+  if (!Array.isArray(x) || x.length === 0) throw bad("must be a non-empty JSON array");
+  return x.map((m: unknown, i) => {
+    if (typeof m !== "object" || m === null || Array.isArray(m)) throw bad(`item ${i} is not an object`);
+    const keys = Object.keys(m).sort().join(",");
+    if (keys !== "fromNode,seedPrefix,toNode") throw bad(`item ${i} must have exactly seedPrefix, fromNode, toNode (has: ${keys})`);
+    for (const [k, v] of Object.entries(m)) if (typeof v !== "string" || v.trim() === "") throw bad(`item ${i}.${k} must be a non-empty string`);
+    return m as { seedPrefix: string; fromNode: string; toNode: string };
+  });
 }
 
 type SeedNode = { code: string; children?: SeedNode[] };
@@ -75,22 +97,30 @@ async function main(): Promise<number> {
       return 0;
     }
     const moves = JSON.parse(await readFile(args.moves, "utf8")) as unknown;
-    if (!Array.isArray(moves)) throw new CliError(5, "the moves file must hold a JSON array");
+    const checked = checkMoves(moves);
     const tenant = (await q<{ id: string }>(`SELECT id FROM tenants WHERE slug = 'platform' LIMIT 1`))[0];
     const actor = tenant === undefined ? undefined : (await q<{ id: string }>(
       `SELECT id FROM users WHERE tenant_id = '${tenant.id}' AND role = 'super_admin' AND status = 'active' AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1`))[0];
     if (tenant === undefined || actor === undefined) throw new CliError(1, "platform tenant or active super_admin not found");
     const { retagBySeedPrefix } = await import("../modules/04-question-bank/src/service/retag.js");
-    const r = await retagBySeedPrefix(
-      { tenantId: tenant.id, userId: actor.id, role: "super_admin" },
-      { moves: moves as never, dryRun: !args.commit, includeClones: args.includeClones, ...(args.packs.length > 0 ? { packSlugs: args.packs } : {}) },
-    );
+    const ctx = { tenantId: tenant.id, userId: actor.id, role: "super_admin" };
+    const packOpt = args.packs.length > 0 ? { packSlugs: args.packs } : {};
+    if (args.expect !== null) {
+      const pre = await retagBySeedPrefix(ctx, { moves: checked, dryRun: true, ...packOpt });
+      const would = pre.totals.matched - pre.totals.skippedNotInFromNode;
+      if (would !== args.expect) throw new CliError(3, `--expect ${args.expect} but the dry run would change ${would} master rows. Nothing written.`);
+    }
+    const r = await retagBySeedPrefix(ctx, { moves: checked, dryRun: !args.commit, includeClones: args.includeClones, ...packOpt });
     process.stdout.write(`${r.dryRun ? "DRY RUN (add --commit to write)" : "COMMITTED"}\n`);
     for (const m of r.moves) {
       process.stdout.write(`${m.seedPrefix}  ${m.fromNode} -> ${m.toNode}  matched=${m.matched} ${r.dryRun ? "would_change" : "changed"}=${r.dryRun ? m.matched - m.skippedNotInFromNode : m.changed} skippedNotInFromNode=${m.skippedNotInFromNode}` +
         `${m.clonesChanged !== undefined ? ` clones=${m.clonesChanged}` : ""} packs=${JSON.stringify(m.changedByPack)}\n`);
     }
     process.stdout.write(`TOTAL matched=${r.totals.matched} changed=${r.totals.changed} skippedNotInFromNode=${r.totals.skippedNotInFromNode} clones=${r.totals.clonesChanged}\n`);
+    if (r.cloneError !== undefined) {
+      process.stderr.write(`clone step failed: ${r.cloneError}\nclones NOT finished: re-run the same command with --include-clones to finish the clones\n`);
+      return 4;
+    }
     return 0;
   } catch (e) {
     const code = (e as { details?: { code?: string } }).details?.code ?? "";
