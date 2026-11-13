@@ -2,7 +2,9 @@
  * Pack + level operations (E9 split of service.ts).
  */
 
+import { createHash } from "node:crypto";
 import {
+  AuthzError,
   NotFoundError,
   ValidationError,
   ConflictError,
@@ -14,6 +16,7 @@ import { auditInTx } from "@assessiq/audit-log";
 import { resyncSetForTenant, listCloneTenantIdsForSource } from "../clone.js";
 import { QB_ERROR_CODES } from "../types.js";
 import * as repo from "../repository.js";
+import { normalizeByIds, byIdsRefusal, assertRoleFitsTenant, asRetryableDeadlock, type ReviewActor } from "./review.js";
 import type {
   AddLevelInput,
   CreatePackInput,
@@ -590,7 +593,7 @@ export async function activateAllQuestionsForPack(
   tenantId: string,
   packId: string,
   actorUserId: string,
-): Promise<{ activated: number; alreadyActive: number; archived: number }> {
+): Promise<{ activated: number; alreadyActive: number; archived: number; heldBack: number }> {
   log.info({ tenantId, packId }, "activateAllQuestionsForPack");
 
   return withTenant(tenantId, async (client) => {
@@ -610,16 +613,25 @@ export async function activateAllQuestionsForPack(
     const result = await repo.bulkActivateDraftQuestionsForPack(client, packId);
     if (result.activated === 0) {
       throw new ConflictError(
-        `No draft questions to activate in question set '${packId}' (active: ${result.alreadyActive}, archived: ${result.archived})`,
+        `No draft questions to activate in question set '${packId}' (active: ${result.alreadyActive}, archived: ${result.archived}` +
+          `${result.heldBack > 0 ? `, marked needs fix or disputed and left as draft: ${result.heldBack}` : ""})`,
         {
           details: {
             code: QB_ERROR_CODES.NO_DRAFT_QUESTIONS_TO_ACTIVATE,
             alreadyActive: result.alreadyActive,
             archived: result.archived,
+            heldBack: result.heldBack,
           },
         },
       );
     }
+
+    // T-62: rows imported into an already published pack have no question_versions snapshot, so the draw
+    // pool (INNER JOIN question_versions) never sees them. Snapshot every active row of this pack that has none.
+    // Limit: a pack with 0 drafts throws NO_DRAFT_QUESTIONS_TO_ACTIVATE above, before this repair; use
+    // backfillMissingSnapshots (tools/aiq-verify-activate.ts --backfill-snapshots) for such a pack.
+    const missing = await repo.listActiveQuestionsWithoutSnapshot(client, { tenantId, packId });
+    const snapshotsWritten = (await repo.snapshotMissingVersions(client, missing.map((m) => m.id), actorUserId)).length;
 
     // Audit-summary row: bulk draft → active transition. One row per call (not
     // per question) keeps the audit_log volume bounded for packs with hundreds
@@ -639,11 +651,134 @@ export async function activateAllQuestionsForPack(
         activated: result.activated,
         already_active: result.alreadyActive,
         archived: result.archived,
+        held_back: result.heldBack,
+        snapshots_written: snapshotsWritten,
       },
     });
 
     return result;
   });
+}
+
+const sha256Ids = (ids: string[]): string => createHash("sha256").update([...ids].sort().join("\n")).digest("hex");
+
+function groupByPack<T extends { pack_id: string }>(rows: T[]): Map<string, T[]> {
+  const m = new Map<string, T[]>();
+  for (const r of rows) m.set(r.pack_id, [...(m.get(r.pack_id) ?? []), r]);
+  return m;
+}
+
+// ---------------------------------------------------------------------------
+// T-62: activate exactly the listed questions (super_admin, own tenant, all-or-nothing)
+// ---------------------------------------------------------------------------
+export async function activateQuestionsByIds(
+  actor: ReviewActor,
+  rawIds: string[],
+): Promise<{
+  activated: number; alreadyActive: number; snapshotsWritten: number;
+  /** One entry per pack that got an audit row; `idsSha256` equals `after.ids_sha256` of that row. */
+  packs: Array<{ packId: string; count: number; idsSha256: string }>;
+}> {
+  if (actor.role !== "super_admin") throw new AuthzError("super_admin required");
+  const ids = normalizeByIds(rawIds);
+  return withTenant(actor.tenantId, async (client) => {
+    await assertRoleFitsTenant(client, actor); // a super_admin acts on the platform organisation only (as retag)
+    const rows = await repo.lockQuestionsByIdsForTenant(client, actor.tenantId, ids);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const bad: Array<{ id: string; reason: string }> = [];
+    for (const id of ids) {
+      const r = byId.get(id);
+      if (r === undefined) { bad.push({ id, reason: "not_found" }); continue; }
+      if (r.pack_status !== "published") bad.push({ id, reason: "pack_not_published" });
+      else if (r.withdrawn) bad.push({ id, reason: "withdrawn" });
+      else if (r.status === "active") continue;
+      else if (r.status !== "draft") bad.push({ id, reason: r.status });
+      else if (r.review_state !== "verified") bad.push({ id, reason: "not_verified" });
+      else if (!r.rights_cleared) bad.push({ id, reason: "rights_not_cleared" });
+    }
+    if (bad.length > 0) throw byIdsRefusal("Some questions cannot be activated; nothing was written", bad);
+
+    const drafts = rows.filter((r) => r.status === "draft").map((r) => r.id);
+    const activated = await repo.activateDraftQuestionsByIds(client, drafts);
+    const written = new Set(await repo.snapshotMissingVersions(client, ids, actor.userId));
+    const draftSet = new Set(drafts);
+    const packs: Array<{ packId: string; count: number; idsSha256: string }> = [];
+    for (const [packId, list] of groupByPack(rows)) {
+      const packIds = list.map((r) => r.id);
+      const packActivated = packIds.filter((i) => draftSet.has(i)).length;
+      const packWritten = packIds.filter((i) => written.has(i)).length;
+      if (packActivated === 0 && packWritten === 0) continue;
+      const idsSha256 = sha256Ids(packIds);
+      packs.push({ packId, count: packIds.length, idsSha256 });
+      await auditInTx(client, {
+        tenantId: actor.tenantId,
+        actorKind: "user",
+        actorUserId: actor.userId,
+        action: "question.updated",
+        entityType: "question_pack",
+        entityId: packId,
+        after: {
+          kind: "bulk_activate_by_ids",
+          from_status: "draft",
+          to_status: "active",
+          activated: packActivated,
+          already_active: packIds.length - packActivated,
+          snapshots_written: packWritten,
+          ids_sha256: idsSha256,
+          first_ids: [...packIds].sort().slice(0, 20),
+        },
+      });
+    }
+    return { activated, alreadyActive: ids.length - drafts.length, snapshotsWritten: written.size, packs };
+  }).catch((err: unknown) => { throw asRetryableDeadlock(err); });
+}
+
+// ---------------------------------------------------------------------------
+// T-62: backfill missing snapshots of ACTIVE questions (super_admin, own tenant)
+// ---------------------------------------------------------------------------
+export async function backfillMissingSnapshots(
+  actor: ReviewActor,
+  opts: { commit: boolean; packSlugs?: string[]; /** With commit: refused unless exactly this many rows are written. */ expect?: number },
+): Promise<{ packs: Array<{ packId: string; slug: string; missing: number }>; total: number; written: number }> {
+  if (actor.role !== "super_admin") throw new AuthzError("super_admin required");
+  return withTenant(actor.tenantId, async (client) => {
+    await assertRoleFitsTenant(client, actor); // platform organisation only; organisation clones are never touched
+    if (opts.packSlugs !== undefined && opts.packSlugs.length > 0) {
+      const unknown = await repo.listUnknownPackSlugs(client, actor.tenantId, opts.packSlugs);
+      if (unknown.length > 0) {
+        throw new ValidationError(`Unknown question set slug: ${unknown.join(", ")}`, { details: { code: QB_ERROR_CODES.PACK_NOT_FOUND, slugs: unknown } });
+      }
+    }
+    const rows = await repo.listActiveQuestionsWithoutSnapshot(client, {
+      tenantId: actor.tenantId,
+      ...(opts.packSlugs !== undefined && opts.packSlugs.length > 0 ? { packSlugs: opts.packSlugs } : {}),
+    });
+    const groups = groupByPack(rows);
+    const packs = [...groups].map(([packId, list]) => ({ packId, slug: list[0]!.slug, missing: list.length }));
+    const countChanged = (actual: number): ConflictError => new ConflictError(
+      `The number of rows to repair is ${actual}, not the expected ${opts.expect}. Nothing was written.`,
+      { details: { code: QB_ERROR_CODES.REVIEW_COUNT_CHANGED, expected: opts.expect, actual } },
+    );
+    if (opts.commit && opts.expect !== undefined && rows.length !== opts.expect) throw countChanged(rows.length);
+    if (!opts.commit || rows.length === 0) return { packs, total: rows.length, written: 0 };
+    const written = new Set(await repo.snapshotMissingVersions(client, rows.map((r) => r.id), actor.userId));
+    // Checked again on the rows really written (same tx, so a throw rolls the write back).
+    if (opts.expect !== undefined && written.size !== opts.expect) throw countChanged(written.size);
+    for (const [packId, list] of groups) {
+      const w = list.map((r) => r.id).filter((i) => written.has(i));
+      if (w.length === 0) continue;
+      await auditInTx(client, {
+        tenantId: actor.tenantId,
+        actorKind: "user",
+        actorUserId: actor.userId,
+        action: "question.updated",
+        entityType: "question_pack",
+        entityId: packId,
+        after: { kind: "snapshot_backfill", written: w.length, ids_sha256: sha256Ids(w), first_ids: [...w].sort().slice(0, 20) },
+      });
+    }
+    return { packs, total: rows.length, written: written.size };
+  }).catch((err: unknown) => { throw asRetryableDeadlock(err); });
 }
 
 // ===========================================================================

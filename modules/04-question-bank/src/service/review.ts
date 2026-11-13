@@ -304,6 +304,74 @@ export async function bulkVerifyPack(
   }).catch((err: unknown) => { throw asRetryableDeadlock(err); });
 }
 
+export const BY_IDS_MAX = 5000;
+const BY_IDS_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** T-62: ids for a by-ids call: 1 to 5,000 after de-duplication, else 422. */
+export function normalizeByIds(raw: string[]): string[] {
+  const bad = raw.find((x) => !BY_IDS_UUID.test(x));
+  if (bad !== undefined) {
+    throw new ValidationError(`Not a question id: ${String(bad).slice(0, 60)}`, { details: { code: QB_ERROR_CODES.INVALID_BULK_SIZE } });
+  }
+  const ids = [...new Set(raw.map((x) => x.toLowerCase()))]; // Postgres returns lower-case uuids
+  if (ids.length === 0 || ids.length > BY_IDS_MAX) {
+    throw new ValidationError(`Send 1 to ${BY_IDS_MAX} question ids`, { details: { code: QB_ERROR_CODES.INVALID_BULK_SIZE, count: ids.length } });
+  }
+  return ids;
+}
+
+/** T-62: refusal with the first 20 bad ids; the caller has written nothing. */
+export function byIdsRefusal(message: string, bad: Array<{ id: string; reason: string }>): ConflictError {
+  return new ConflictError(message, { details: { code: QB_ERROR_CODES.BY_IDS_REFUSED, bad: bad.slice(0, 20), bad_count: bad.length } });
+}
+
+/**
+ * T-62: verify exactly the listed questions. in_review and NULL become verified; verified is counted and not
+ * written; a missing, archived, withdrawn, needs_fix or disputed id fails the whole call (nothing written).
+ * One audit row per changed question.
+ */
+export async function verifyQuestionsByIds(
+  actor: ReviewActor,
+  rawIds: string[],
+): Promise<{ verified: number; alreadyVerified: number }> {
+  assertReviewRole(actor.role);
+  const ids = normalizeByIds(rawIds);
+  return withTenant(actor.tenantId, async (client) => {
+    // The lock query filters on the actor's tenant, so only the role-to-tenant rule is left to check:
+    // platform questions need a super_admin, organisation questions an organisation admin.
+    await assertRoleFitsTenant(client, actor);
+    const rows = await repo.lockQuestionsByIdsForTenant(client, actor.tenantId, ids);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const bad: Array<{ id: string; reason: string }> = [];
+    for (const id of ids) {
+      const r = byId.get(id);
+      if (r === undefined) bad.push({ id, reason: "not_found" });
+      else if (r.withdrawn) bad.push({ id, reason: "withdrawn" });
+      else if (r.status === "archived") bad.push({ id, reason: "archived" });
+      else if (r.review_state === "needs_fix" || r.review_state === "disputed") bad.push({ id, reason: r.review_state });
+    }
+    if (bad.length > 0) throw byIdsRefusal("Some questions cannot be verified; nothing was written", bad);
+
+    const changed = rows.filter((r) => r.review_state !== "verified");
+    if (changed.length > 0) {
+      await client.query(`UPDATE questions SET review_state = 'verified' WHERE id = ANY($1::uuid[])`, [changed.map((r) => r.id)]);
+    }
+    for (const r of changed) {
+      await auditInTx(client, {
+        tenantId: actor.tenantId,
+        actorKind: "user",
+        actorUserId: actor.userId,
+        action: "question.review_changed",
+        entityType: "question",
+        entityId: r.id,
+        before: { review_state: r.review_state },
+        after: { review_state: "verified", action: "verify", bulk: true, by_ids: true, pack_id: r.pack_id },
+      });
+    }
+    return { verified: changed.length, alreadyVerified: ids.length - changed.length };
+  }).catch((err: unknown) => { throw asRetryableDeadlock(err); });
+}
+
 export interface ReviewItem {
   id: string;
   level_id: string;

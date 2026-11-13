@@ -527,3 +527,33 @@ Platform packs are readable by a licensed tenant through `licensed_read` SELECT 
 - **Rollback:** the reverse move (swap fromNode and toNode, same prefix).
 - **Side effect:** reports read live topic links, so a move across units changes the topic breakdown of past attempts.
 - Subject map gained `coordinate-geometry`, `statistics`, `cube-and-dice` (outcomes 125 to 128).
+
+## Verify and activate by ids; snapshot repair (T-62, S110)
+
+**What.** Three service calls and one tool.
+- `verifyQuestionsByIds(actor, ids)` (`src/service/review.ts`): sets `review_state = 'verified'` for exactly the listed questions. `in_review` and NULL are changed; `verified` is counted as `alreadyVerified`. One audit row per changed question (`question.review_changed`, `after.bulk = true`, `after.by_ids = true`).
+- `activateQuestionsByIds(actor, ids)` (`src/service/packs.ts`): `super_admin` only. Sets `status = 'active'` for the listed `draft` rows and writes the missing version snapshot for every listed row. One audit row per pack (`question.updated`, `after.kind = 'bulk_activate_by_ids'`, counts, `ids_sha256`, `first_ids`; no full id list).
+- `backfillMissingSnapshots(actor, { commit, packSlugs })` (`src/service/packs.ts`): `super_admin` only. Counts, and with `commit` repairs, ACTIVE questions of the actor's tenant that have no `question_versions` row. One audit row per pack (`after.kind = 'snapshot_backfill'`).
+- `activateAllQuestionsForPack` now also writes the missing snapshot for every active row of the pack (audit field `snapshots_written`).
+- Shared helper `repo.snapshotMissingVersions(client, ids, savedBy)`: insert at `questions.version`, then `version + 1` (the `publishPack` rule), only for rows with no snapshot at all.
+- Tool `tools/aiq-verify-activate.ts` (ids file or seed prefix; `--verify`, `--activate`, `--backfill-snapshots`; dry run by default; `--commit --expect <n>`).
+
+**Why.** (1) The draw pool and the assessment freeze INNER JOIN `question_versions`. The CSV import writes no snapshot and the pack-wide activation wrote none, so a row imported into an already published pack was `active` but never drawn (RCA 2026-11-13). (2) The pack-wide activation flips every draft of a pack; a load needs a call that touches only its own rows.
+
+**Rules.** Each by-ids call is one transaction and all-or-nothing: one refused id fails the call with `BY_IDS_REFUSED` (`details.bad` holds the first 20 ids with a reason) and nothing is written. 1 to 5,000 ids. The tenant filter is explicit in SQL (`p.tenant_id = actor.tenantId`); RLS is not relied on, because policy `licensed_read` shows licensed rows of other tenants. Activate refuses: not found, pack not published, withdrawn, `archived`, `ai_draft`, a draft that is not `verified`, a draft whose rights are not cleared. Verify refuses: not found, withdrawn, archived, `needs_fix`, `disputed`.
+
+**Guards added after review.** `activateQuestionsByIds` and `backfillMissingSnapshots` call `assertRoleFitsTenant`: platform organisation only, organisation clones are never touched. Ids are format-checked and lower-cased. `snapshotMissingVersions` repeats the "no snapshot" guard in its INSERT, so two parallel runs cannot write two snapshots. `backfillMissingSnapshots` takes `expect` and refuses inside the write transaction when the count differs; an unknown pack slug is an error. `activateQuestionsByIds` returns one `idsSha256` per pack, equal to the audit row.
+
+**Known limits.** An assessment published before a repair keeps its frozen pool; it needs a new publish to get the repaired rows. A draft edited before activation is drawn with its text from before the edit (existing rule: an edit shows after a re-publish). `activateAllQuestionsForPack` on a pack with 0 drafts throws before its repair step; use the backfill.
+
+**Differences from the pack-wide calls.** `activateQuestionsByIds` requires `verified` for a draft (the pack-wide call does not); it returns zero counts when nothing changes (the pack-wide call throws `NO_DRAFT_QUESTIONS_TO_ACTIVATE`); it throws on rights not cleared (the pack-wide call skips such rows). `verifyQuestionsByIds` is not the `bulkVerifyPack` rule: `bulkVerifyPack` takes only `in_review` rows and leaves the rest.
+
+**Considered and rejected.** `revisePack` then `publishPack` as the repair (a new snapshot for every row, the live pack in `draft` for a moment, every draft auto-activated). A raw SQL insert (no audit row). A snapshot write in the import commit (a draft row would then carry a snapshot before review; the repair sits at the one point every row passes: activation). An HTTP route (the tool is the only caller). Chunked calls (a failure in a later chunk would leave a partial write).
+
+**Not included.** A pack version bump, so organisation clones do not receive newly activated rows until a publish (`clone/resync.ts` is a no-op unless the pack version rose): owner decision. A change of "Verify all".
+
+**Hold rule (owner 2026-11-13, option a).** `repo.bulkActivateDraftQuestionsForPack` (used by "Activate all" and by the auto-activation of `publishPack`) does not activate a draft marked `needs_fix` or `disputed`; the row stays draft and is counted in `heldBack` (audit field `held_back`, error detail `heldBack`). `in_review`, `verified` and NULL activate as before. To hold a row out of a load, mark it `needs_fix`. Rejected: "only verified or NULL activates" (it stopped the publish flow for every `in_review` question; 6 existing tests showed it).
+
+**Downstream.** Modules 05 (freeze) and 06 (draw pool) now see rows that were imported after the pack was published. Audit consumers see two new `after.kind` values and one new field. No schema change, no route, no help id.
+
+**Tests.** `src/__tests__/verify-activate-by-ids.test.ts` (real Postgres, 7 cases: the pool query returns the row after either activate call, a later edit does not collide, a draft outside the list stays draft, refusals write nothing, exact verify audit shape, idempotent re-run, backfill). `tools/__tests__/aiq-verify-activate.test.ts` (23 cases, fakes).

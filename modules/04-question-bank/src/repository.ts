@@ -1076,8 +1076,9 @@ export async function withdrawQuestionRow(client: PoolClient, questionId: string
  * rights. metadata_only, scraped_raw, withdrawn and a missing row all block. Shared by the
  * publish gate and every activation path; references the unaliased `questions` table.
  */
+const RIGHTS_CLEARED_STATUSES = `('original','derived_from_source','licensed')`;
 export const RIGHTS_CLEARED_SQL = `EXISTS (SELECT 1 FROM question_source s WHERE s.question_id = questions.id
-  AND s.rights_status IN ('original','derived_from_source','licensed'))`;
+  AND s.rights_status IN ${RIGHTS_CLEARED_STATUSES})`;
 
 /** EXP-2: ids of a pack's non-archived questions whose rights are not cleared. */
 export async function listRightsBlockedQuestionIds(client: PoolClient, packId: string): Promise<string[]> {
@@ -1213,11 +1214,16 @@ export async function updateQuestionRow(
  *
  * No tenant_id filter is added — RLS scopes the UPDATE to the current tenant
  * via the JOIN through `question_packs.tenant_id`.
+ *
+ * Hold rule (owner 2026-11-13, option a): a draft marked needs_fix or disputed is NOT activated; it stays
+ * draft and is counted in `heldBack`, so one click (Activate all, or the auto-activation of publishPack,
+ * which calls this function too) cannot put a held row live. in_review, verified and NULL activate as before
+ * (publishAssessment has its own QUESTIONS_NOT_VERIFIED gate).
  */
 export async function bulkActivateDraftQuestionsForPack(
   client: PoolClient,
   packId: string,
-): Promise<{ activated: number; alreadyActive: number; archived: number }> {
+): Promise<{ activated: number; alreadyActive: number; archived: number; heldBack: number }> {
   // First read counts so we can return the breakdown for the admin UI.
   const counts = await client.query<{ status: string; count: string }>(
     `SELECT status, count(*)::text AS count FROM questions
@@ -1234,13 +1240,21 @@ export async function bulkActivateDraftQuestionsForPack(
 
   const result = await client.query(
     `UPDATE questions SET status = 'active', updated_at = now()
-     WHERE pack_id = $1 AND status = 'draft' AND ${RIGHTS_CLEARED_SQL}`,
+     WHERE pack_id = $1 AND status = 'draft'
+       AND (review_state IS NULL OR review_state NOT IN ('needs_fix', 'disputed'))
+       AND ${RIGHTS_CLEARED_SQL}`,
+    [packId],
+  );
+  const held = await client.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM questions
+      WHERE pack_id = $1 AND status = 'draft' AND review_state IN ('needs_fix', 'disputed')`,
     [packId],
   );
   return {
     activated: result.rowCount ?? 0,
     alreadyActive,
     archived,
+    heldBack: parseInt(held.rows[0]?.count ?? "0", 10),
   };
 }
 
@@ -1545,4 +1559,119 @@ export async function insertReviewNote(
     [n.tenantId, n.questionId, n.version, n.state, n.note, n.authorUserId],
   );
   return r.rows[0]!.id;
+}
+
+// ---------------------------------------------------------------------------
+// T-62: snapshots for rows that were imported or activated without one
+// ---------------------------------------------------------------------------
+
+/**
+ * Write the missing question_versions snapshot for every listed question that has NO snapshot row at all,
+ * at the question's current `version`, then bump questions.version by one (the publishPack rule, so a later
+ * updateQuestion snapshot does not collide on UNIQUE (question_id, version)). Rows with any snapshot are
+ * untouched. Set-based: one lock query, one INSERT ... SELECT, one UPDATE, whatever the list size.
+ * The snapshot id uses gen_random_uuid() (the app uses uuidv7 elsewhere; nothing orders by the id).
+ * Returns the ids written, sorted.
+ */
+export async function snapshotMissingVersions(
+  client: PoolClient,
+  questionIds: string[],
+  savedByUserId: string,
+): Promise<string[]> {
+  if (questionIds.length === 0) return [];
+  const locked = await client.query<{ id: string }>(
+    `SELECT q.id FROM questions q
+      WHERE q.id = ANY($1::uuid[])
+        AND NOT EXISTS (SELECT 1 FROM question_versions v WHERE v.question_id = q.id)
+      ORDER BY q.id
+        FOR UPDATE OF q`,
+    [questionIds],
+  );
+  const ids = locked.rows.map((r) => r.id);
+  if (ids.length === 0) return [];
+  // The NOT EXISTS guard is repeated here: under READ COMMITTED a tx that waited on the row lock did not see
+  // the snapshot the other tx just committed in its lock query; this statement has a fresh snapshot and does.
+  const ins = await client.query<{ question_id: string }>(
+    `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by, type)
+     SELECT gen_random_uuid(), q.id, q.version, q.content, q.rubric, $2, q.type
+       FROM questions q
+      WHERE q.id = ANY($1::uuid[])
+        AND NOT EXISTS (SELECT 1 FROM question_versions v WHERE v.question_id = q.id)
+     RETURNING question_id`,
+    [ids, savedByUserId],
+  );
+  const written = ins.rows.map((r) => r.question_id).sort();
+  if (written.length === 0) return [];
+  await client.query(`UPDATE questions SET version = version + 1 WHERE id = ANY($1::uuid[])`, [written]);
+  return written;
+}
+
+/** Slugs of the list that are NOT a pack of `tenantId`. */
+export async function listUnknownPackSlugs(client: PoolClient, tenantId: string, slugs: string[]): Promise<string[]> {
+  const r = await client.query<{ slug: string }>(
+    `SELECT slug FROM question_packs WHERE tenant_id = $1 AND slug = ANY($2::text[])`, [tenantId, slugs]);
+  const have = new Set(r.rows.map((x) => x.slug));
+  return slugs.filter((x) => !have.has(x));
+}
+
+/** ACTIVE questions with no snapshot row, for one tenant's packs (explicit tenant filter), by pack. */
+export async function listActiveQuestionsWithoutSnapshot(
+  client: PoolClient,
+  filter: { tenantId: string; packId?: string; packSlugs?: string[] },
+): Promise<Array<{ pack_id: string; slug: string; id: string }>> {
+  const r = await client.query<{ pack_id: string; slug: string; id: string }>(
+    `SELECT q.pack_id, p.slug, q.id
+       FROM questions q JOIN question_packs p ON p.id = q.pack_id
+      WHERE p.tenant_id = $1 AND q.status = 'active'
+        AND ($2::uuid IS NULL OR q.pack_id = $2::uuid)
+        AND ($3::text[] IS NULL OR p.slug = ANY($3::text[]))
+        AND NOT EXISTS (SELECT 1 FROM question_versions v WHERE v.question_id = q.id)
+      ORDER BY q.pack_id, q.id`,
+    [filter.tenantId, filter.packId ?? null, filter.packSlugs ?? null],
+  );
+  return r.rows;
+}
+
+export interface ByIdsRow {
+  id: string;
+  pack_id: string;
+  pack_status: string;
+  status: string;
+  review_state: string | null;
+  withdrawn: boolean;
+  rights_cleared: boolean;
+}
+
+/**
+ * Lock the listed questions (FOR UPDATE OF q, id order) that belong to a pack of `tenantId`. No RLS reliance:
+ * the tenant filter is explicit, so an id of another tenant is simply absent from the result.
+ */
+export async function lockQuestionsByIdsForTenant(
+  client: PoolClient,
+  tenantId: string,
+  ids: string[],
+): Promise<ByIdsRow[]> {
+  const r = await client.query<ByIdsRow>(
+    `SELECT q.id, q.pack_id, p.status AS pack_status, q.status, q.review_state,
+            COALESCE(s.rights_status = 'withdrawn', false) AS withdrawn,
+            COALESCE(s.rights_status IN ${RIGHTS_CLEARED_STATUSES}, false) AS rights_cleared
+       FROM questions q
+       JOIN question_packs p ON p.id = q.pack_id
+       LEFT JOIN question_source s ON s.question_id = q.id
+      WHERE q.id = ANY($2::uuid[]) AND p.tenant_id = $1
+      ORDER BY q.id
+        FOR UPDATE OF q`,
+    [tenantId, ids],
+  );
+  return r.rows;
+}
+
+/** Flip the listed DRAFT questions to active. Returns the number changed. */
+export async function activateDraftQuestionsByIds(client: PoolClient, ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const r = await client.query(
+    `UPDATE questions SET status = 'active', updated_at = now() WHERE id = ANY($1::uuid[]) AND status = 'draft'`,
+    [ids],
+  );
+  return r.rowCount ?? 0;
 }

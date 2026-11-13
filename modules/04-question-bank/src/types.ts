@@ -505,6 +505,8 @@ export const QB_ERROR_CODES = {
   /** Z-52: Postgres deadlock (40P01) on a review write; safe to retry. */
   DEADLOCK_RETRY: "DEADLOCK_RETRY",
   INVALID_BULK_SIZE: "INVALID_BULK_SIZE",
+  /** T-62: verify/activate by ids refused: at least one id fails a rule; nothing was written. */
+  BY_IDS_REFUSED: "BY_IDS_REFUSED",
   INVALID_STATUS_TRANSITION: "INVALID_STATUS_TRANSITION",
   UNSUPPORTED_TYPE_FOR_RUBRIC: "UNSUPPORTED_TYPE_FOR_RUBRIC",
 } as const;
