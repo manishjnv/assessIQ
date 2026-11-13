@@ -52,6 +52,8 @@ export interface SourceQuestionRow {
   rubric: unknown | null;
   // Live (non-versioned) candidate hint — copied like topic/points.
   answer_guidance: string | null;
+  /** Points deducted for a wrong attempted answer (migration 0184); copied into new clone rows. */
+  negative_marks: number | null;
   knowledge_base_sources: unknown;
   domain_id: string | null;
   category_id: string | null;

@@ -227,7 +227,8 @@ describe("T-62 by-ids verify + activate", () => {
     const again = await backfillMissingSnapshots(superP(), { commit: true, packSlugs: ["t62-g"] });
     expect(again).toEqual({ packs: [], total: 0, written: 0 });
     expect(await audits(tP, "question.updated", p.pack)).toHaveLength(1);
-    await expect(backfillMissingSnapshots(adminA(), { commit: false })).rejects.toThrow(/super_admin/);
+    // organisation mode (S110 part 2): an organisation admin may repair the own tenant; a super_admin role on an organisation tenant is refused
+    await expect(backfillMissingSnapshots({ tenantId: tA, userId: uA, role: "super_admin" }, { commit: false })).rejects.toMatchObject({ name: "AuthzError" });
   });
 });
 

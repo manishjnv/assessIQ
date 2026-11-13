@@ -289,7 +289,14 @@ export async function updateQuestion(
       versionBump = true;
     }
 
-    if (versionBump) {
+    // T-62: a row with NO snapshot that this call activates must get ONE snapshot holding the NEW content
+    // (written after the update below). Writing the old content here would leave the pool serving the pre-edit
+    // content. A row that already has a snapshot keeps the snapshot-before-update rule.
+    const activating = patch.status === "active" && current.status !== "active";
+    const hasSnapshot = !activating || (await repo.listQuestionVersions(client, id)).length > 0;
+    const skipOldSnapshot = activating && !hasSnapshot;
+
+    if (versionBump && !skipOldSnapshot) {
       // Snapshot old values BEFORE bumping
       await repo.insertQuestionVersion(client, {
         id: uuidv7(),
@@ -330,12 +337,20 @@ export async function updateQuestion(
           ? patch.answer_guidance.trim()
           : null;
     }
-    if (versionBump) repoPatch.version = current.version + 1;
+    if (versionBump && !skipOldSnapshot) repoPatch.version = current.version + 1;
     // EXP-18: a verified key that is edited is no longer verified. NULL stays NULL.
     const resetReview = versionBump && current.review_state === "verified";
     if (resetReview) repoPatch.review_state = "in_review";
 
-    const updated = await repo.updateQuestionRow(client, id, repoPatch);
+    let updated = await repo.updateQuestionRow(client, id, repoPatch);
+    // T-62: AFTER the update (never before: a snapshot at the stale current.version would collide on
+    // UNIQUE (question_id, version)). Writes the one snapshot, with the new content, for a row that had none.
+    // No-op when a snapshot exists. Snapshot only: no pack version bump and no clone push on this path.
+    // Activation is the publish event: the newest snapshot must equal the row (a draft edited earlier is brought up to date).
+    if (activating && (await repo.snapshotForActivation(client, [id], savedByUserId)).length > 0) {
+      // the helper bumped questions.version: return and audit the real row
+      updated = (await repo.findQuestionById(client, id)) ?? updated;
+    }
     if (resetReview) {
       await auditInTx(client, {
         tenantId,
@@ -803,6 +818,8 @@ export async function bulkUpdateQuestionStatus(
     );
 
     const updated = result.rows.map((r) => r.id);
+    // T-62: rows that went active need a snapshot (the draw pool INNER JOINs question_versions).
+    const snapshotsWritten = status === "active" ? (await repo.snapshotForActivation(client, updated, actorUserId)).length : 0;
     const updatedSet = new Set(updated);
     const notFound = ids.filter((id) => !updatedSet.has(id));
 
@@ -823,6 +840,7 @@ export async function bulkUpdateQuestionStatus(
         allowed_sources: [...allowedSources],
         updated_count: updated.length,
         not_found_count: notFound.length,
+        snapshots_written: snapshotsWritten,
         updated_ids: updated,
       },
     });

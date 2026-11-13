@@ -81,7 +81,7 @@ export async function clonePackToTenant(
   const srcQuestions = (
     await client.query<SourceQuestionRow>(
       `SELECT id, level_id, type, topic, points, status, content, rubric,
-              answer_guidance, knowledge_base_sources, domain_id, category_id
+              answer_guidance, negative_marks, knowledge_base_sources, domain_id, category_id
          FROM questions WHERE pack_id = $1 AND ${NOT_WITHDRAWN_SQL} ORDER BY created_at ASC, id ASC`,
       [sourcePackId],
     )
@@ -241,8 +241,8 @@ export async function clonePackToTenant(
     await client.query(
       `INSERT INTO questions
          (id, pack_id, level_id, type, topic, points, status, version, content,
-          rubric, answer_guidance, knowledge_base_sources, created_by, domain_id, category_id, source_question_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 2, $8::jsonb, $9::jsonb, $10, $11::jsonb, $12, $13, $14, $15)`,
+          rubric, answer_guidance, knowledge_base_sources, created_by, domain_id, category_id, source_question_id, negative_marks)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 2, $8::jsonb, $9::jsonb, $10, $11::jsonb, $12, $13, $14, $15, $16)`,
       [
         newQuestionId,
         newPackId,
@@ -259,6 +259,7 @@ export async function clonePackToTenant(
         newDomainId,
         newCategoryId,
         q.id,
+        q.negative_marks,
       ],
     );
     await copyQuestionSource(client, q.id, newQuestionId, targetTenantId);

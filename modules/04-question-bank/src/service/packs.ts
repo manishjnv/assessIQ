@@ -10,13 +10,14 @@ import {
   ConflictError,
   uuidv7,
 } from "@assessiq/core";
-import { withTenant } from "@assessiq/tenancy";
+import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import { getQuestionType, isQuestionType } from "@assessiq/question-types";
 import { auditInTx } from "@assessiq/audit-log";
-import { resyncSetForTenant, listCloneTenantIdsForSource } from "../clone.js";
+import { resyncSetForTenant, resyncClonedPack, listCloneTenantIdsForSource } from "../clone.js";
+import type { ResyncResult } from "../clone/resync-types.js";
 import { QB_ERROR_CODES } from "../types.js";
 import * as repo from "../repository.js";
-import { normalizeByIds, byIdsRefusal, assertRoleFitsTenant, asRetryableDeadlock, type ReviewActor } from "./review.js";
+import { normalizeByIds, byIdsRefusal, assertReviewRole, assertRoleFitsTenant, asRetryableDeadlock, type ReviewActor } from "./review.js";
 import type {
   AddLevelInput,
   CreatePackInput,
@@ -469,7 +470,7 @@ export async function revisePack(
 // without aborting the rest. The per-clone re-sync is itself transactional and
 // advisory-locked, so it cannot race a concurrent clone-on-use of the same
 // source.
-async function autoSyncClonesForPack(sourcePackId: string, actorUserId: string): Promise<void> {
+async function autoSyncClonesForPack(sourcePackId: string, actorUserId: string): Promise<{ tenants: number; updated: number; failed: number; skipped: number }> {
   let tenantIds: string[];
   try {
     tenantIds = await listCloneTenantIdsForSource(sourcePackId);
@@ -478,16 +479,18 @@ async function autoSyncClonesForPack(sourcePackId: string, actorUserId: string):
       { err, sourcePackId },
       "autoSyncClonesForPack: clone enumeration failed; skipping auto-sync (manual Update remains available)",
     );
-    return;
+    return { tenants: 0, updated: 0, failed: 1, skipped: 0 };
   }
-  if (tenantIds.length === 0) return;
+  if (tenantIds.length === 0) return { tenants: 0, updated: 0, failed: 0, skipped: 0 };
 
   let updated = 0;
   let failed = 0;
+  let skipped = 0;
   for (const tenantId of tenantIds) {
     try {
       const r = await resyncSetForTenant(sourcePackId, tenantId, actorUserId, "system");
       if (r.updated) updated += 1;
+      skipped += r.skipped;
     } catch (err) {
       failed += 1;
       log.error(
@@ -497,9 +500,10 @@ async function autoSyncClonesForPack(sourcePackId: string, actorUserId: string):
     }
   }
   log.info(
-    { sourcePackId, tenants: tenantIds.length, updated, failed },
+    { sourcePackId, tenants: tenantIds.length, updated, failed, skipped },
     "autoSyncClonesForPack complete",
   );
+  return { tenants: tenantIds.length, updated, failed, skipped };
 }
 
 // ---------------------------------------------------------------------------
@@ -593,10 +597,12 @@ export async function activateAllQuestionsForPack(
   tenantId: string,
   packId: string,
   actorUserId: string,
-): Promise<{ activated: number; alreadyActive: number; archived: number; heldBack: number }> {
+  /** awaitCloneSync (default true): wait for the push to the organisation clones. The HTTP route passes false (the push re-compares every row for every clone and must not hold the request). */
+  opts: { awaitCloneSync?: boolean } = {},
+): Promise<{ activated: number; alreadyActive: number; archived: number; heldBack: number; cloneSync: "background" | "done" | "off" }> {
   log.info({ tenantId, packId }, "activateAllQuestionsForPack");
 
-  return withTenant(tenantId, async (client) => {
+  const out = await withTenant(tenantId, async (client) => {
     const pack = await repo.findPackById(client, packId);
     if (pack === null) {
       throw new NotFoundError(`Question set not found: ${packId}`, {
@@ -630,8 +636,15 @@ export async function activateAllQuestionsForPack(
     // pool (INNER JOIN question_versions) never sees them. Snapshot every active row of this pack that has none.
     // Limit: a pack with 0 drafts throws NO_DRAFT_QUESTIONS_TO_ACTIVATE above, before this repair; use
     // backfillMissingSnapshots (tools/aiq-verify-activate.ts --backfill-snapshots) for such a pack.
+    // Rows activated now: activation is their publish event (newest snapshot must equal the row). Rows that were
+    // already active: missing snapshots only (an edit after activation keeps the re-publish rule).
+    const activatedNow = (await repo.snapshotForActivation(client, result.activatedIds, actorUserId)).length;
     const missing = await repo.listActiveQuestionsWithoutSnapshot(client, { tenantId, packId });
-    const snapshotsWritten = (await repo.snapshotMissingVersions(client, missing.map((m) => m.id), actorUserId)).length;
+    const snapshotsWritten = activatedNow + (await repo.snapshotMissingVersions(client, missing.map((m) => m.id), actorUserId)).length;
+
+    // T-62 part 2: new active rows must reach the organisation clones. resyncClonedPack is a no-op unless the
+    // master pack version rose, so bump it here (activated > 0 is guaranteed above) and push after commit.
+    const packVersion = SYNC_CLONES_ON_ACTIVATION ? await repo.bumpPackVersion(client, packId) : undefined;
 
     // Audit-summary row: bulk draft → active transition. One row per call (not
     // per question) keeps the audit_log volume bounded for packs with hundreds
@@ -653,12 +666,30 @@ export async function activateAllQuestionsForPack(
         archived: result.archived,
         held_back: result.heldBack,
         snapshots_written: snapshotsWritten,
+        ...(packVersion !== undefined ? { pack_version: packVersion } : {}),
       },
     });
 
     return result;
   });
+  const { activatedIds: _ids, ...counts } = out; // eslint-disable-line @typescript-eslint/no-unused-vars
+  if (!SYNC_CLONES_ON_ACTIVATION) return { ...counts, cloneSync: "off" };
+  if (opts.awaitCloneSync === false) {
+    // Own connections (system-role tx per clone), never the request's client; the .catch keeps a surprise out of unhandledRejection.
+    autoSyncClonesForPack(packId, actorUserId).catch((err: unknown) => log.error({ err, packId }, "activateAllQuestionsForPack: background clone push failed"));
+    return { ...counts, cloneSync: "background" };
+  }
+  await autoSyncClonesForPack(packId, actorUserId); // best-effort, never throws (as publishPack step 6)
+  return { ...counts, cloneSync: "done" };
 }
+
+/**
+ * T-62 part 2 switch (the owner can turn it off with this one line). true: activating rows in a published pack
+ * bumps the pack version (+1, in the activation tx) and, after commit, pushes the pack to its organisation
+ * clones (best-effort, never inside the tx). false: no bump and no push; the CLI --sync-clones
+ * (syncClonesForPack) is then the only path that delivers new rows to the clones.
+ */
+const SYNC_CLONES_ON_ACTIVATION = true;
 
 const sha256Ids = (ids: string[]): string => createHash("sha256").update([...ids].sort().join("\n")).digest("hex");
 
@@ -676,12 +707,15 @@ export async function activateQuestionsByIds(
   rawIds: string[],
 ): Promise<{
   activated: number; alreadyActive: number; snapshotsWritten: number;
+  /** One entry per pack whose version was bumped: the clone push result (empty when the switch is off or nothing was activated). */
+  cloneSync: Array<{ packId: string; tenants: number; updated: number; failed: number; skipped: number }>;
   /** One entry per pack that got an audit row; `idsSha256` equals `after.ids_sha256` of that row. */
   packs: Array<{ packId: string; count: number; idsSha256: string }>;
 }> {
   if (actor.role !== "super_admin") throw new AuthzError("super_admin required");
   const ids = normalizeByIds(rawIds);
-  return withTenant(actor.tenantId, async (client) => {
+  const bumped: string[] = [];
+  const out = await withTenant(actor.tenantId, async (client) => {
     await assertRoleFitsTenant(client, actor); // a super_admin acts on the platform organisation only (as retag)
     const rows = await repo.lockQuestionsByIdsForTenant(client, actor.tenantId, ids);
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -700,8 +734,10 @@ export async function activateQuestionsByIds(
 
     const drafts = rows.filter((r) => r.status === "draft").map((r) => r.id);
     const activated = await repo.activateDraftQuestionsByIds(client, drafts);
-    const written = new Set(await repo.snapshotMissingVersions(client, ids, actor.userId));
+    // drafts just activated: activation is their publish event; rows that were already active: missing only.
+    const written = new Set(await repo.snapshotForActivation(client, drafts, actor.userId));
     const draftSet = new Set(drafts);
+    for (const w of await repo.snapshotMissingVersions(client, ids.filter((i) => !draftSet.has(i)), actor.userId)) written.add(w);
     const packs: Array<{ packId: string; count: number; idsSha256: string }> = [];
     for (const [packId, list] of groupByPack(rows)) {
       const packIds = list.map((r) => r.id);
@@ -709,6 +745,9 @@ export async function activateQuestionsByIds(
       const packWritten = packIds.filter((i) => written.has(i)).length;
       if (packActivated === 0 && packWritten === 0) continue;
       const idsSha256 = sha256Ids(packIds);
+      // T-62 part 2: new active rows must reach the organisation clones (resync needs a higher master version).
+      let packVersion: number | undefined;
+      if (packActivated > 0 && SYNC_CLONES_ON_ACTIVATION) { packVersion = await repo.bumpPackVersion(client, packId); bumped.push(packId); }
       packs.push({ packId, count: packIds.length, idsSha256 });
       await auditInTx(client, {
         tenantId: actor.tenantId,
@@ -726,23 +765,28 @@ export async function activateQuestionsByIds(
           snapshots_written: packWritten,
           ids_sha256: idsSha256,
           first_ids: [...packIds].sort().slice(0, 20),
+          ...(packVersion !== undefined ? { pack_version: packVersion } : {}),
         },
       });
     }
     return { activated, alreadyActive: ids.length - drafts.length, snapshotsWritten: written.size, packs };
   }).catch((err: unknown) => { throw asRetryableDeadlock(err); });
+  const cloneSync: Array<{ packId: string; tenants: number; updated: number; failed: number; skipped: number }> = [];
+  for (const packId of bumped) cloneSync.push({ packId, ...(await autoSyncClonesForPack(packId, actor.userId)) }); // best-effort, after commit
+  return { ...out, cloneSync };
 }
 
 // ---------------------------------------------------------------------------
-// T-62: backfill missing snapshots of ACTIVE questions (super_admin, own tenant)
+// T-62: backfill missing snapshots of ACTIVE questions (platform super_admin or organisation admin, own tenant)
 // ---------------------------------------------------------------------------
 export async function backfillMissingSnapshots(
   actor: ReviewActor,
   opts: { commit: boolean; packSlugs?: string[]; /** With commit: refused unless exactly this many rows are written. */ expect?: number },
 ): Promise<{ packs: Array<{ packId: string; slug: string; missing: number }>; total: number; written: number }> {
-  if (actor.role !== "super_admin") throw new AuthzError("super_admin required");
+  assertReviewRole(actor.role);
   return withTenant(actor.tenantId, async (client) => {
-    await assertRoleFitsTenant(client, actor); // platform organisation only; organisation clones are never touched
+    // platform tenant: super_admin; an organisation: its own admin. Only the actor's own tenant is ever read or written.
+    await assertRoleFitsTenant(client, actor);
     if (opts.packSlugs !== undefined && opts.packSlugs.length > 0) {
       const unknown = await repo.listUnknownPackSlugs(client, actor.tenantId, opts.packSlugs);
       if (unknown.length > 0) {
@@ -779,6 +823,142 @@ export async function backfillMissingSnapshots(
     }
     return { packs, total: rows.length, written: written.size };
   }).catch((err: unknown) => { throw asRetryableDeadlock(err); });
+}
+
+// ---------------------------------------------------------------------------
+// T-62 part 2: push a platform pack to its organisation clones (dry run or commit)
+// ---------------------------------------------------------------------------
+class DryRunRollback extends Error {
+  constructor(readonly result: ResyncResult) { super("dry run rollback"); }
+}
+
+export interface SyncCloneEntry {
+  tenantId: string;
+  tenantSlug: string;
+  clonePackId: string;
+  clonePackStatus: string;
+  sourceVersion: number | null;
+  activeMasterRows: number;
+  missingInClone: number;
+  /** Clone rows with a source that the sync leaves untouched: sourced non-archived rows before the sync minus changed minus archived (computed, not measured). */
+  unchanged: number;
+  /** Clone rows with a source that are not active (archived or draft) while the master row is active: the sync sets them back to active (counted inside result.changed). Read before the sync, in dry run and commit. */
+  wouldRevive: number;
+  /** Dry run: what a commit would produce (the real resync in a rolled-back tx). Commit: what happened. */
+  result?: { updated: boolean; added: number; changed: number; archived: number; skipped: number };
+  error?: string;
+}
+
+export async function syncClonesForPack(
+  actor: ReviewActor,
+  packSlug: string,
+  opts: { commit: boolean; /** With commit: refused unless the preview adds exactly this many rows over all clones. */ expectAdded?: number },
+): Promise<{ packId: string; slug: string; version: number; bumped: boolean; clones: SyncCloneEntry[] }> {
+  if (actor.role !== "super_admin") throw new AuthzError("super_admin required");
+  const pack = await withTenant(actor.tenantId, async (client) => {
+    await assertRoleFitsTenant(client, actor);
+    const p = await repo.findPackIdentityBySlug(client, actor.tenantId, packSlug);
+    if (p === null) {
+      throw new ValidationError(`Unknown question set slug: ${packSlug}`, { details: { code: QB_ERROR_CODES.PACK_NOT_FOUND, slugs: [packSlug] } });
+    }
+    if (p.status !== "published") {
+      throw new ConflictError(`Question set '${packSlug}' must be 'published' (current: '${p.status}')`, {
+        details: { code: QB_ERROR_CODES.PACK_NOT_PUBLISHED, status: p.status },
+      });
+    }
+    return p;
+  });
+  const status = await withSystemRole("T-62 clone status of a platform pack", (client) => repo.listCloneStatusForSource(client, pack.id));
+  // A clone at or above the master version would make resync a no-op. Bump only when that hides rows (missing > 0);
+  // a repeat commit with nothing missing therefore does not bump again.
+  const needBump = status.some((c) => (c.source_version ?? 0) >= pack.version && c.missing_in_clone > 0);
+  // Preview = the real resync in a rolled-back tx, per clone. Used by the dry run result and by the commit guards.
+  const previews = new Map<string, ResyncResult | string>();
+  for (const c of status) {
+    try { previews.set(c.tenant_id, await dryRunResync(pack.id, c.tenant_id, actor.userId, needBump)); }
+    catch (err) { previews.set(c.tenant_id, err instanceof Error ? err.message : String(err)); }
+  }
+  if (opts.commit) {
+    // The owner approves the dry-run table; a clone whose preview failed is not in that table. Refuse before any write.
+    const errored = status.flatMap((c) => { const r = previews.get(c.tenant_id); return typeof r === "string" ? [{ tenant: c.tenant_slug, error: r }] : []; });
+    if (errored.length > 0) {
+      throw new ConflictError(`The sync preview failed for: ${errored.map((e) => `${e.tenant} (${e.error})`).join("; ")}. Nothing was written.`, {
+        details: { code: QB_ERROR_CODES.REVIEW_COUNT_CHANGED, preview_errors: errored },
+      });
+    }
+    // Resync advances source_version even when it skipped rows (taxonomy miss), so a commit with skipped rows
+    // would hide them for good: refuse before any write; the operator fixes the taxonomy first.
+    const skippedIn = status.filter((c) => { const r = previews.get(c.tenant_id); return typeof r !== "string" && r !== undefined && r.skipped > 0; }).map((c) => c.tenant_slug);
+    if (skippedIn.length > 0) {
+      throw new ConflictError(`The sync would skip rows in: ${skippedIn.join(", ")} (taxonomy miss). Fix the taxonomy first. Nothing was written.`, {
+        details: { code: QB_ERROR_CODES.REVIEW_COUNT_CHANGED, skipped_tenants: skippedIn },
+      });
+    }
+    if (opts.expectAdded !== undefined) {
+      let sum = 0;
+      for (const r of previews.values()) if (typeof r !== "string") sum += r.added;
+      if (sum !== opts.expectAdded) {
+        throw new ConflictError(`The sync would add ${sum} rows, not the expected ${opts.expectAdded}. Nothing was written.`, {
+          details: { code: QB_ERROR_CODES.REVIEW_COUNT_CHANGED, expected: opts.expectAdded, actual: sum },
+        });
+      }
+    }
+  }
+  let version = pack.version;
+  let bumped = false;
+  if (opts.commit && needBump) {
+    version = await withTenant(actor.tenantId, async (client) => {
+      const v = await repo.bumpPackVersion(client, pack.id);
+      await auditInTx(client, {
+        tenantId: actor.tenantId,
+        actorKind: "user",
+        actorUserId: actor.userId,
+        action: "pack.updated",
+        entityType: "question_pack",
+        entityId: pack.id,
+        after: { kind: "version_bump_for_clone_sync", version: v },
+      });
+      return v;
+    });
+    bumped = true;
+  }
+
+  const clones: SyncCloneEntry[] = [];
+  for (const c of status) {
+    const entry: SyncCloneEntry = {
+      tenantId: c.tenant_id, tenantSlug: c.tenant_slug, clonePackId: c.clone_pack_id, clonePackStatus: c.clone_pack_status,
+      sourceVersion: c.source_version, activeMasterRows: c.active_master_rows, missingInClone: c.missing_in_clone, unchanged: 0, wouldRevive: c.would_revive,
+    };
+    try {
+      const pv = previews.get(c.tenant_id);
+      if (!opts.commit && typeof pv === "string") throw new Error(pv);
+      const r: ResyncResult = opts.commit
+        ? await resyncSetForTenant(pack.id, c.tenant_id, actor.userId, "system")
+        : (pv as ResyncResult);
+      entry.result = { updated: r.updated, added: r.added, changed: r.changed, archived: r.archived, skipped: r.skipped };
+      if (opts.commit && r.skipped > 0) entry.error = `skipped ${r.skipped} row(s) at commit; fix the taxonomy and run again`;
+      entry.unchanged = Math.max(0, c.sourced_clone_rows - r.changed - r.archived);
+    } catch (err) {
+      entry.error = err instanceof Error ? err.message : String(err);
+    }
+    clones.push(entry);
+  }
+  return { packId: pack.id, slug: pack.slug, version, bumped, clones };
+}
+
+/** The real resync in a system-role tx that is always rolled back (the commit's version bump is simulated inside it). */
+async function dryRunResync(packId: string, tenantId: string, actorUserId: string, withBump: boolean): Promise<ResyncResult> {
+  try {
+    await withSystemRole("T-62 dry run of a platform pack resync (rolled back)", async (client) => {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [tenantId, packId]);
+      if (withBump) await repo.bumpPackVersion(client, packId);
+      throw new DryRunRollback(await resyncClonedPack(client, packId, tenantId, actorUserId));
+    });
+  } catch (err) {
+    if (err instanceof DryRunRollback) return err.result;
+    throw err;
+  }
+  throw new Error("dryRunResync: unreachable");
 }
 
 // ===========================================================================

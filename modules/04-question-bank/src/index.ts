@@ -156,7 +156,7 @@ export { listBundledSeeds, loadFrameworkSeed, validateFrameworkSeed } from "./fr
 export { retagBySeedPrefix, type RetagInput, type RetagResult, type RetagMove } from "./service/retag.js";
 // T-62: verify and activate exactly the listed questions; backfill of missing version snapshots (tools/aiq-verify-activate.ts).
 export { verifyQuestionsByIds } from "./service/review.js";
-export { activateQuestionsByIds, backfillMissingSnapshots } from "./service/packs.js";
+export { activateQuestionsByIds, backfillMissingSnapshots, syncClonesForPack, type SyncCloneEntry } from "./service/packs.js";
 
 // ---------------------------------------------------------------------------
 // 4b. Platform domain management + cross-tenant propagation (super-admin)

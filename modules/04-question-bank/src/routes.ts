@@ -745,7 +745,7 @@ export async function registerQuestionBankRoutes(
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      return activateAllQuestionsForPack(tenantId, id, userId);
+      return activateAllQuestionsForPack(tenantId, id, userId, { awaitCloneSync: false });
     },
   );
 

@@ -1223,7 +1223,7 @@ export async function updateQuestionRow(
 export async function bulkActivateDraftQuestionsForPack(
   client: PoolClient,
   packId: string,
-): Promise<{ activated: number; alreadyActive: number; archived: number; heldBack: number }> {
+): Promise<{ activated: number; alreadyActive: number; archived: number; heldBack: number; activatedIds: string[] }> {
   // First read counts so we can return the breakdown for the admin UI.
   const counts = await client.query<{ status: string; count: string }>(
     `SELECT status, count(*)::text AS count FROM questions
@@ -1242,7 +1242,8 @@ export async function bulkActivateDraftQuestionsForPack(
     `UPDATE questions SET status = 'active', updated_at = now()
      WHERE pack_id = $1 AND status = 'draft'
        AND (review_state IS NULL OR review_state NOT IN ('needs_fix', 'disputed'))
-       AND ${RIGHTS_CLEARED_SQL}`,
+       AND ${RIGHTS_CLEARED_SQL}
+     RETURNING id`,
     [packId],
   );
   const held = await client.query<{ count: string }>(
@@ -1252,6 +1253,7 @@ export async function bulkActivateDraftQuestionsForPack(
   );
   return {
     activated: result.rowCount ?? 0,
+    activatedIds: result.rows.map((r: { id: string }) => r.id).sort(),
     alreadyActive,
     archived,
     heldBack: parseInt(held.rows[0]?.count ?? "0", 10),
@@ -1674,4 +1676,135 @@ export async function activateDraftQuestionsByIds(client: PoolClient, ids: strin
     [ids],
   );
   return r.rowCount ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// T-62 part 2: pack version bump and clone status (clone rows get new master rows)
+// ---------------------------------------------------------------------------
+
+/** Atomic pack version + 1. Returns the new version. */
+export async function bumpPackVersion(client: PoolClient, packId: string): Promise<number> {
+  const r = await client.query<{ version: number }>(
+    `UPDATE question_packs SET version = version + 1, updated_at = now() WHERE id = $1 RETURNING version`,
+    [packId],
+  );
+  const v = r.rows[0]?.version;
+  if (v === undefined) throw new Error("bumpPackVersion: pack not found");
+  return v;
+}
+
+/** A pack of one tenant by slug (explicit tenant filter). */
+export async function findPackIdentityBySlug(
+  client: PoolClient,
+  tenantId: string,
+  slug: string,
+): Promise<{ id: string; slug: string; status: string; version: number } | null> {
+  const r = await client.query<{ id: string; slug: string; status: string; version: number }>(
+    `SELECT id, slug, status, version FROM question_packs WHERE tenant_id = $1 AND slug = $2`,
+    [tenantId, slug],
+  );
+  return r.rows[0] ?? null;
+}
+
+export interface CloneStatusRow {
+  tenant_id: string;
+  tenant_slug: string;
+  clone_pack_id: string;
+  source_version: number | null;
+  clone_pack_status: string;
+  active_master_rows: number;
+  missing_in_clone: number;
+  /** Clone questions with a source (source_question_id set) and not archived. */
+  sourced_clone_rows: number;
+  /** Clone rows with a source that are not active (archived or draft) while the master row is active and not withdrawn: a resync sets them back to active. */
+  would_revive: number;
+}
+
+/**
+ * Cross-tenant read (the caller runs it under the system role): every non-archived clone of a master pack,
+ * with the number of active, not withdrawn master rows and how many of them have no clone question
+ * (source_question_id = master id) in that clone pack.
+ */
+export async function listCloneStatusForSource(client: PoolClient, sourcePackId: string): Promise<CloneStatusRow[]> {
+  const r = await client.query<CloneStatusRow>(
+    `SELECT cp.tenant_id, t.slug AS tenant_slug, cp.id AS clone_pack_id, cp.source_version, cp.status AS clone_pack_status,
+            (SELECT count(*)::int FROM questions cq WHERE cq.pack_id = cp.id AND cq.source_question_id IS NOT NULL AND cq.status <> 'archived') AS sourced_clone_rows,
+            (SELECT count(*)::int FROM questions cq JOIN questions m ON m.id = cq.source_question_id
+              WHERE cq.pack_id = cp.id AND cq.status <> 'active'
+                AND m.pack_id = $1 AND m.status = 'active'
+                AND NOT EXISTS (SELECT 1 FROM question_source w WHERE w.question_id = m.id AND w.rights_status = 'withdrawn')) AS would_revive,
+            (SELECT count(*)::int FROM questions m
+              WHERE m.pack_id = $1 AND m.status = 'active'
+                AND NOT EXISTS (SELECT 1 FROM question_source w WHERE w.question_id = m.id AND w.rights_status = 'withdrawn')
+            ) AS active_master_rows,
+            (SELECT count(*)::int FROM questions m
+              WHERE m.pack_id = $1 AND m.status = 'active'
+                AND NOT EXISTS (SELECT 1 FROM question_source w WHERE w.question_id = m.id AND w.rights_status = 'withdrawn')
+                AND NOT EXISTS (SELECT 1 FROM questions cq WHERE cq.pack_id = cp.id AND cq.source_question_id = m.id)
+            ) AS missing_in_clone
+       FROM question_packs cp JOIN tenants t ON t.id = cp.tenant_id
+      WHERE cp.source_pack_id = $1 AND cp.status <> 'archived'
+      ORDER BY t.slug, cp.id`,
+    [sourcePackId],
+  );
+  return r.rows;
+}
+
+// ---------------------------------------------------------------------------
+// T-62 fix round: activation is the publish event of a row
+// ---------------------------------------------------------------------------
+
+/**
+ * For rows that go draft (or ai_draft) -> active in the calling tx: make the NEWEST snapshot equal the row.
+ * A row gets a new snapshot (at its current `version`, then version + 1) when it has NO snapshot, or when its
+ * newest snapshot differs from the row in content, rubric or type (jsonb equality; a SQL NULL rubric and a JSON
+ * null rubric count as equal). A draft edited before activation otherwise keeps an old snapshot that the pool
+ * (MAX(version)) would serve. Do NOT use it for rows that are already active: an active row edited after
+ * activation follows the "edit shows after a re-publish" rule, so only snapshotMissingVersions repairs those.
+ * Invariant checked: questions.version > max snapshot version; a row that breaks it throws a clear error
+ * naming the id instead of hitting UNIQUE (question_id, version). Set-based; the guard is repeated in the
+ * INSERT so two parallel runs cannot both write. Returns the ids written, sorted.
+ */
+export async function snapshotForActivation(
+  client: PoolClient,
+  questionIds: string[],
+  savedByUserId: string,
+): Promise<string[]> {
+  if (questionIds.length === 0) return [];
+  const STALE = `(
+      NOT EXISTS (SELECT 1 FROM question_versions v WHERE v.question_id = q.id)
+      OR EXISTS (
+        SELECT 1 FROM question_versions v
+         WHERE v.question_id = q.id
+           AND v.version = (SELECT max(v2.version) FROM question_versions v2 WHERE v2.question_id = q.id)
+           AND (v.content IS DISTINCT FROM q.content
+                OR COALESCE(v.rubric, 'null'::jsonb) IS DISTINCT FROM COALESCE(q.rubric, 'null'::jsonb)
+                OR v.type IS DISTINCT FROM q.type)))`;
+  const locked = await client.query<{ id: string; version: number; maxv: number | null }>(
+    `SELECT q.id, q.version, (SELECT max(v.version) FROM question_versions v WHERE v.question_id = q.id) AS maxv
+       FROM questions q
+      WHERE q.id = ANY($1::uuid[]) AND ${STALE}
+      ORDER BY q.id
+        FOR UPDATE OF q`,
+    [questionIds],
+  );
+  for (const r of locked.rows) {
+    if (r.maxv !== null && r.version <= r.maxv) {
+      throw new Error(`snapshotForActivation: question ${r.id} has version ${r.version} but a snapshot at version ${r.maxv}`);
+    }
+  }
+  const ids = locked.rows.map((r) => r.id);
+  if (ids.length === 0) return [];
+  const ins = await client.query<{ question_id: string }>(
+    `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by, type)
+     SELECT gen_random_uuid(), q.id, q.version, q.content, q.rubric, $2, q.type
+       FROM questions q
+      WHERE q.id = ANY($1::uuid[]) AND ${STALE}
+     RETURNING question_id`,
+    [ids, savedByUserId],
+  );
+  const written = ins.rows.map((r) => r.question_id).sort();
+  if (written.length === 0) return [];
+  await client.query(`UPDATE questions SET version = version + 1 WHERE id = ANY($1::uuid[])`, [written]);
+  return written;
 }
