@@ -103,7 +103,7 @@ describe("exam-structure and subject-map seeds", () => {
       expect(KEBAB.test(u.code)).toBe(true);
       expect(u.children!.every((o) => o.kind === "outcome" && KEBAB.test(o.code))).toBe(true);
     }
-    expect(aptUnits.flatMap((u) => u.children ?? [])).toHaveLength(125);
+    expect(aptUnits.flatMap((u) => u.children ?? [])).toHaveLength(128);
     // Owner 2026-10-29: General awareness and Computer aptitude stay without outcomes (also the 2026-11-08 subjects).
     for (const s of subj.nodes.filter((n) => ["general-awareness", "computer-aptitude", "programming-logic", "mechanical-comprehension"].includes(n.code))) {
       expect((s.children ?? []).flatMap((u) => u.children ?? [])).toHaveLength(0);

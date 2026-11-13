@@ -137,6 +137,11 @@
               "code": "polygons-and-quadrilaterals",
               "title": "Polygons and quadrilaterals",
               "kind": "outcome"
+            },
+            {
+              "code": "coordinate-geometry",
+              "title": "Coordinate geometry",
+              "kind": "outcome"
             }
           ]
         },
@@ -202,6 +207,11 @@
             {
               "code": "mixed-di",
               "title": "Mixed DI",
+              "kind": "outcome"
+            },
+            {
+              "code": "statistics",
+              "title": "Statistics",
               "kind": "outcome"
             }
           ]
@@ -349,6 +359,11 @@
             {
               "code": "paper-folding-and-cutting",
               "title": "Paper folding and cutting",
+              "kind": "outcome"
+            },
+            {
+              "code": "cube-and-dice",
+              "title": "Cube and dice",
               "kind": "outcome"
             }
           ]
