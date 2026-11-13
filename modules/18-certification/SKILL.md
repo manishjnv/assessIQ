@@ -586,4 +586,4 @@ The public verify page prints Issued and Revoked dates with `formatIst()`. The J
 - `src/pdf/template.ts`: the two text font stacks (`FONT_SERIF`, `FONT_SANS`) now name `'Noto Sans Devanagari'` before the generic family, so a Hindi name, title or organisation renders in that face. Latin text is unchanged (the Latin faces come first).
 - The PDF is drawn by headless Chromium, which shapes Devanagari itself. The font comes from `fonts-noto-core` in the api image (`infra/docker/assessiq-api/Dockerfile`); no font file is in the repo and no Dockerfile change was needed.
 - The LinkedIn and OG image path already handled Devanagari (`routes-public.ts`, `DEVANAGARI_FONT`).
-- Test: `src/__tests__/pdf-devanagari.test.ts`. On a Windows dev machine Chromium falls back to Nirmala UI; the Noto face is checked on the server.
+- Test: `src/__tests__/pdf-devanagari.test.ts`. On a Windows dev machine Chromium falls back to Nirmala UI; on the server only `fc-match` was run (it names the Noto face); no PDF was rendered there to confirm the face.

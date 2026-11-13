@@ -1,5 +1,5 @@
 /**
- * EXP-9 A3: setAttemptLanguage across tenants with real RLS. A session of tenant B gets the same not-found as a missing id,
+ * EXP-9 A2 (language route): setAttemptLanguage across tenants with real RLS. A session of tenant B gets the same not-found as a missing id,
  * the row of tenant A is unchanged and no audit row is written; the owner sets "hi" and gets one audit row.
  * DB-backed (testcontainers Postgres), no mocks.
  */

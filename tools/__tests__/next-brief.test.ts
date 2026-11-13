@@ -2,6 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const root = join(__dirname, "..", "..");
@@ -19,5 +20,24 @@ describe.skipIf(!inputsPresent)("next-brief", () => {
     }
     expect(md).not.toContain("## Agent utilization");
     expect(Buffer.byteLength(md, "utf8") / 4).toBeLessThan(30000);
+  });
+});
+
+// Z-193: the newest block can start with "## PICK UP HERE"; an older "# Session" block lower in the file must not win.
+describe("next-brief firstSessionBlock", () => {
+  const load = async (): Promise<(lines: string[]) => string[]> =>
+    (await import(/* @vite-ignore */ pathToFileURL(join(root, "tools/next-brief.mjs")).href)).firstSessionBlock;
+
+  it("takes the top PICK UP HERE block and stops at its first sub-heading", async () => {
+    const block = (await load())([
+      "## PICK UP HERE: new work (S108)", "**Next:** do it", "", "### Agent utilization (S108)", "- Opus: x", "---",
+      "# Session S103 addendum", "old", "---",
+    ]);
+    expect(block).toEqual(["### PICK UP HERE: new work (S108)", "**Next:** do it", ""]);
+  });
+
+  it("still reads an old # Session block up to the --- line", async () => {
+    const block = (await load())(["intro", "# Session - 2026-10-18", "**Headline:** h", "---", "## Agent utilization"]);
+    expect(block).toEqual(["## Session - 2026-10-18", "**Headline:** h"]);
   });
 });

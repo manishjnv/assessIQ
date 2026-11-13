@@ -22,12 +22,16 @@ const OUT = join(ROOT, 'docs/NEXT.md');
 export const splitLines = (text) => text.split(/\r?\n/);
 export const estTokens = (text) => Math.ceil(Buffer.byteLength(text, 'utf8') / 4);
 
-/** First session block: from the first "# Session" line up to the first "---" line. */
+/**
+ * Newest session block: from the first "# Session" or "## PICK UP HERE" heading (Z-193: the newer
+ * blocks use the second form) up to the next heading or "---" line. Sub-sections (addendum, agent
+ * utilization) are left out.
+ */
 export function firstSessionBlock(lines) {
-  const start = lines.findIndex((l) => l.startsWith('# Session'));
-  if (start < 0) throw new Error('no "# Session" heading in SESSION_STATE');
-  const end = lines.findIndex((l, i) => i > start && l.trim() === '---');
-  if (end < 0) throw new Error('no "---" line after the newest session block');
+  const start = lines.findIndex((l) => /^#{1,2} (Session|PICK UP HERE)/.test(l));
+  if (start < 0) throw new Error('no "# Session" or "## PICK UP HERE" heading in SESSION_STATE');
+  let end = lines.findIndex((l, i) => i > start && (l.trim() === '---' || l.startsWith('#')));
+  if (end < 0) end = lines.length;
   return lines.slice(start, end).map((l) => (l.startsWith('#') ? `#${l}` : l));
 }
 
@@ -187,4 +191,5 @@ function main() {
   console.log(`output size: ${bytes} bytes, ~${estTokens(text)} tokens (estimate: bytes / 4)`);
 }
 
-main();
+// Run only as a script, so a test can import the helpers.
+if (process.argv[1]?.endsWith('next-brief.mjs')) main();
