@@ -15,7 +15,7 @@ import * as repo from "../repository.js";
 import { activateAllQuestionsForPack, activateQuestionsByIds, backfillMissingSnapshots, syncClonesForPack } from "../service/packs.js";
 import { verifyQuestionsByIds } from "../service/review.js";
 import { updateQuestion, bulkUpdateQuestionStatus } from "../service/questions.js";
-import { materializeSetForTenant } from "../clone.js";
+import { materializeSetForTenant, resyncSetForTenant } from "../clone.js";
 
 const MCQ = { question: "Edited?", options: ["3", "4", "5", "6"], correct: 1, rationale: "r" };
 
@@ -599,5 +599,36 @@ describe("fix round", () => {
     } finally {
       await sup(async (c) => { await c.query(`DROP TRIGGER t62_fail17 ON questions`); await c.query(`DROP FUNCTION t62_fail17()`); });
     }
+  });
+});
+
+describe("T-85 and T-86", () => {
+  it("18: the manual resync refuses an archived clone pack and writes nothing", async () => {
+    const { p } = await mkMaster("sap-18");
+    await materializeSetForTenant(p.pack, tA, uA);
+    const cl = await cloneOf(tA, p.pack);
+    await sup((c) => c.query(`UPDATE question_packs SET status='archived' WHERE id=$1`, [cl.pack]));
+    await unpushed(p, 1);
+    await sup((c) => c.query(`UPDATE question_packs SET version = version + 1 WHERE id=$1`, [p.pack])); // master is ahead
+    const fp = await fingerprint();
+    await expect(resyncSetForTenant(p.pack, tA, uA)).rejects.toMatchObject({ name: "ValidationError", details: { code: "CLONE_ARCHIVED" } });
+    expect(await fingerprint()).toEqual(fp);
+  });
+
+  it("19: the 4 difficulty tag columns reach new clone rows by clone-on-grant and by resync", async () => {
+    const tags = (id: string) => sup(async (c) => (await c.query(`SELECT cognitive_level, nice_task_id, difficulty_params, attack_technique FROM questions WHERE id=$1`, [id])).rows[0]);
+    const setTags = (id: string) => sup((c) => c.query(`UPDATE questions SET cognitive_level='apply', nice_task_id='T0001', difficulty_params='{"k":1}'::jsonb, attack_technique=ARRAY['T1566'] WHERE id=$1`, [id]));
+    const want = { cognitive_level: "apply", nice_task_id: "T0001", difficulty_params: { k: 1 }, attack_technique: ["T1566"] };
+    const p = await mkPack(tP, uP, "sap-19");
+    const base = await importRow(tP, uP, p);
+    await setTags(base);
+    await activateQuestionsByIds(superP(), [base]);
+    await materializeSetForTenant(p.pack, tA, uA);
+    const cl = await cloneOf(tA, p.pack);
+    expect(await tags((await cloneRows(cl.pack)).find((r) => r.source_question_id === base)!.id)).toEqual(want);
+    const n = await importRow(tP, uP, p);
+    await setTags(n);
+    await activateQuestionsByIds(superP(), [n]); // bump + push = resync
+    expect(await tags((await cloneRows(cl.pack)).find((r) => r.source_question_id === n)!.id)).toEqual(want);
   });
 });

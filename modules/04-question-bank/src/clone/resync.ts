@@ -46,8 +46,8 @@ export async function resyncClonedPack(
 
   // ── The clone in the target tenant ──────────────────────────────────────────
   const clone = (
-    await client.query<{ id: string; source_version: number | null; version: number }>(
-      `SELECT id, source_version, version FROM question_packs
+    await client.query<{ id: string; source_version: number | null; version: number; status: string }>(
+      `SELECT id, source_version, version, status FROM question_packs
         WHERE tenant_id = $1 AND source_pack_id = $2 LIMIT 1`,
       [targetTenantId, sourcePackId],
     )
@@ -55,6 +55,13 @@ export async function resyncClonedPack(
   if (clone === undefined) {
     throw new NotFoundError("no clone of this set exists in your workspace", {
       details: { code: "CLONE_NOT_FOUND" },
+    });
+  }
+  // T-85: an archived clone pack is never re-synced (a resync would add and revive rows in it). The automatic
+  // push and the sync tool do not list archived clones; this check covers the manual Update endpoint.
+  if (clone.status === "archived") {
+    throw new ValidationError("this question set is archived in your workspace and cannot be updated", {
+      details: { code: "CLONE_ARCHIVED" },
     });
   }
 

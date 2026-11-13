@@ -92,6 +92,8 @@ export async function copyQuestionTaxonomy(client: PoolClient, clonePackId: stri
  * import_id and uploaded_by point at the master tenant, so they are not carried over.
  * A master with no source row (should not exist after 0194) clones as original_human/original.
  * review_state is copied as-is (same content): a clone keeps the state of its source (EXP-18 owner decision).
+ * T-86: the difficulty tags (cognitive_level, nice_task_id, difficulty_params, attack_technique; display only) are
+ * copied here too, so NEW clone rows get them on both paths. Existing clone rows are not refreshed (see T-84).
  * MUST run in the same system-role tx as the INSERT of the clone question.
  */
 export async function copyQuestionSource(
@@ -117,7 +119,9 @@ export async function copyQuestionSource(
   await client.query(
     `UPDATE questions c
         SET difficulty_est = m.difficulty_est, review_state = m.review_state,
-            language_primary = m.language_primary, content_i18n = m.content_i18n
+            language_primary = m.language_primary, content_i18n = m.content_i18n,
+            cognitive_level = m.cognitive_level, nice_task_id = m.nice_task_id,
+            difficulty_params = m.difficulty_params, attack_technique = m.attack_technique
        FROM questions m WHERE c.id = $2 AND m.id = $1`,
     [masterQuestionId, cloneQuestionId],
   );
