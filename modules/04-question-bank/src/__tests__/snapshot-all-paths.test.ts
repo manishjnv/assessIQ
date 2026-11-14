@@ -633,6 +633,24 @@ describe("T-85 and T-86", () => {
   });
 });
 
+describe("T-84 and T-87", () => {
+  it("22: a resync refreshes review state, Hindi overlay, difficulty, negative marks and tags on EXISTING clone rows", async () => {
+    const row = (id: string) => sup(async (c) => (await c.query(`SELECT review_state, content_i18n, difficulty_est, negative_marks::float8 AS negative_marks, cognitive_level, version FROM questions WHERE id=$1`, [id])).rows[0]);
+    const p = await mkPack(tP, uP, "sap-22");
+    const base = await importRow(tP, uP, p);
+    await activateQuestionsByIds(superP(), [base]);
+    await materializeSetForTenant(p.pack, tA, uA);
+    const cl = await cloneOf(tA, p.pack);
+    const cq = (await cloneRows(cl.pack)).find((r) => r.source_question_id === base)!.id;
+    const before = await row(cq);
+    await sup((c) => c.query(`UPDATE questions SET review_state='needs_fix', content_i18n='{"hi":{"question":"x"}}'::jsonb, difficulty_est=4, negative_marks=0.25, cognitive_level='apply' WHERE id=$1`, [base]));
+    await sup((c) => c.query(`UPDATE question_packs SET version = version + 1 WHERE id=$1`, [p.pack])); // master is ahead
+    const r = await resyncSetForTenant(p.pack, tA, uA);
+    expect(r.changed).toBe(1);
+    expect(await row(cq)).toEqual({ review_state: "needs_fix", content_i18n: { hi: { question: "x" } }, difficulty_est: 4, negative_marks: 0.25, cognitive_level: "apply", version: before.version });
+  });
+});
+
 describe("T-89: a licensed use restores a clone that a revoke archived", () => {
   /** What 19-billing revokeEntitlement does to the clone: status archived + one tenant.pack_clone_archived audit row. */
   const revokeArchive = (tenant: string, user: string, clonePack: string, src: string) => sup(async (c) => {

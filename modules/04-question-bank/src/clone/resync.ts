@@ -177,6 +177,7 @@ export async function resyncClonedPack(
   const masterIds = new Set<string>();
   let added = 0;
   let changed = 0;
+  const changedIds = new Set<string>();
   let archived = 0;
   let skipped = 0;
 
@@ -319,6 +320,7 @@ export async function resyncClonedPack(
         ],
       );
       changed++;
+      changedIds.add(Q.id);
     } else if (metadataChanged) {
       // Content/rubric identical but level/taxonomy/points/topic/type changed
       // upstream (or it had been archived and master still ships it active).
@@ -331,6 +333,7 @@ export async function resyncClonedPack(
         [Q.id, tgtLevelId, tax.domainId, tax.categoryId, M.points, M.topic, M.type, M.answer_guidance],
       );
       changed++;
+      changedIds.add(Q.id);
     }
     // else: fully unchanged (content + metadata) → leave untouched (no churn).
   }
@@ -349,6 +352,26 @@ export async function resyncClonedPack(
       archived++;
     }
   }
+
+  // T-84, T-87: fields that live only on the questions row (no version snapshot) follow the master on EXISTING
+  // clone rows too, as they already do on new rows (copyQuestionSource). Content is authored on the platform only,
+  // so the master wins; a review state set on the clone row is overwritten. No version bump (as metadata above).
+  const refreshed = await client.query<{ id: string }>(
+    `UPDATE questions c
+        SET review_state = m.review_state, content_i18n = m.content_i18n, difficulty_est = m.difficulty_est,
+            negative_marks = m.negative_marks, cognitive_level = m.cognitive_level, nice_task_id = m.nice_task_id,
+            difficulty_params = m.difficulty_params, attack_technique = m.attack_technique, updated_at = now()
+       FROM questions m
+      WHERE c.pack_id = $1 AND m.id = c.source_question_id AND m.pack_id = $2 AND m.status = 'active'
+        AND (c.review_state, c.content_i18n, c.difficulty_est, c.negative_marks, c.cognitive_level, c.nice_task_id,
+             c.difficulty_params, c.attack_technique)
+            IS DISTINCT FROM
+            (m.review_state, m.content_i18n, m.difficulty_est, m.negative_marks, m.cognitive_level, m.nice_task_id,
+             m.difficulty_params, m.attack_technique)
+      RETURNING c.id`,
+    [clone.id, sourcePackId],
+  );
+  for (const r of refreshed.rows) if (!changedIds.has(r.id)) changed++;
 
   // Taxonomy links for new clone questions (and a backfill for clones made before this copy existed).
   await copyQuestionTaxonomy(client, clone.id);
