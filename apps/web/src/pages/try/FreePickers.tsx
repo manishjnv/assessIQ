@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router';
 import { Card, Chip, Logo } from '@assessiq/ui-system';
-import { EYEBROW, H1, WRAP } from './FreeScreens';
+import { CRUMB, EYEBROW, H1, WRAP } from './FreeScreens';
 import { EXAM_SLUGS, FREE_EXAMS, LEVELS, getExam, bestLine, itemsPerAttempt, readBest, type BestScores } from './freeTests';
 import { useHead } from './useHead';
 
@@ -68,7 +68,7 @@ export function LevelPickerPage(): React.JSX.Element {
       <main style={{ ...WRAP, paddingTop: 48 }}>
         <Logo size={28} showWordmark href="/" />
         <p style={{ ...EYEBROW, marginTop: 40, marginBottom: 8 }}>
-          <Link to="/try" style={{ color: 'inherit' }}>
+          <Link to="/try" style={CRUMB}>
             Free tests
           </Link>{' '}
           &middot; {exam.title}

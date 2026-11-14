@@ -31,6 +31,9 @@ import {
   type Mode,
 } from './freeTests';
 
+// Breadcrumb link: 44 px tall tap area on a phone without moving the line (padding offset by negative margin).
+export const CRUMB: CSSProperties = { color: 'inherit', display: 'inline-block', padding: '15px 0', margin: '-15px 0' };
+
 export const EYEBROW: CSSProperties = {
   fontFamily: 'var(--aiq-font-mono)',
   fontSize: 11,
@@ -88,7 +91,7 @@ export function FreeIntro({
     <main style={{ ...WRAP, paddingTop: 48 }}>
       <Logo size={28} showWordmark href="/" />
       <p style={{ ...EYEBROW, marginTop: 40, marginBottom: 8 }}>
-        <Link to={`/try/${set.exam}`} style={{ color: 'inherit' }}>
+        <Link to={`/try/${set.exam}`} style={CRUMB}>
           Free {exam.title.toLowerCase()} tests
         </Link>{' '}
         &middot; {set.slug}
