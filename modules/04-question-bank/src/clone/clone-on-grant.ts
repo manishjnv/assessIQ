@@ -5,6 +5,7 @@ import { auditInTx } from "@assessiq/audit-log";
 import { type ClonePackResult, type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, uniqueNonNull, getPlatformTenantId, deriveCloneSlug, copyQuestionSource, copyQuestionTaxonomy, NOT_WITHDRAWN_SQL } from "./helpers.js";
 import { provisionPlatformTaxonomyForQuestions } from "./taxonomy.js";
 import { copyAssetsForContent } from "../assets/assets.js";
+import { resyncClonedPack } from "./resync.js";
 
 export async function clonePackToTenant(
   client: PoolClient,
@@ -45,13 +46,43 @@ export async function clonePackToTenant(
 
   // ── Idempotency: existing clone of this source in the target tenant? ───────
   const existingClone = (
-    await client.query<{ id: string; slug: string }>(
-      `SELECT id, slug FROM question_packs
+    await client.query<{ id: string; slug: string; status: string }>(
+      `SELECT id, slug, status FROM question_packs
         WHERE tenant_id = $1 AND source_pack_id = $2 LIMIT 1`,
       [targetTenantId, sourcePackId],
     )
   ).rows[0];
   if (existingClone !== undefined) {
+    // T-89: a licence revoke archives the clone pack (19-billing revokeEntitlement). When the organisation uses the
+    // set again (the caller has re-checked the licence), undo exactly that: set the pack back to 'published' and
+    // re-sync it to the master. A pack that an admin archived by hand (audit 'pack.archived' newer than the revoke
+    // archive, or no revoke archive at all) stays archived, and one revoke archive is undone only once (a later
+    // 'tenant.pack_resynced' row with unarchived = true consumes it).
+    let restored: ClonePackResult["restored"];
+    if (existingClone.status === "archived") {
+      const byRevoke =
+        (
+          await client.query(
+            `SELECT 1 FROM audit_log r
+              WHERE r.tenant_id = $1 AND r.action = 'tenant.pack_clone_archived'
+                AND r.after->'archived_clone_ids' ? $2::text
+                AND NOT EXISTS (SELECT 1 FROM audit_log h
+                                 WHERE h.tenant_id = $1 AND h.action = 'pack.archived'
+                                   AND h.entity_id = $2::uuid AND h.id > r.id)
+                -- a revoke archive is undone once: a restore after it consumes it
+                AND NOT EXISTS (SELECT 1 FROM audit_log u
+                                 WHERE u.tenant_id = $1 AND u.action = 'tenant.pack_resynced'
+                                   AND u.entity_id = $2::uuid AND u.after->>'unarchived' = 'true' AND u.id > r.id)
+              LIMIT 1`,
+            [targetTenantId, existingClone.id],
+          )
+        ).rows.length > 0;
+      if (byRevoke) {
+        await client.query(`UPDATE question_packs SET status = 'published', updated_at = now() WHERE id = $1`, [existingClone.id]);
+        const r = await resyncClonedPack(client, sourcePackId, targetTenantId, actorUserId);
+        restored = { fromVersion: r.fromVersion, toVersion: r.toVersion, added: r.added, changed: r.changed, archived: r.archived, skipped: r.skipped, newPackVersion: r.newPackVersion };
+      }
+    }
     const qc = (
       await client.query<{ count: string }>(
         `SELECT count(*) FROM questions WHERE pack_id = $1`,
@@ -65,6 +96,7 @@ export async function clonePackToTenant(
       questionCount: parseInt(qc?.count ?? "0", 10),
       skippedCount: 0,
       reusedExisting: true,
+      ...(restored !== undefined ? { restored } : {}),
     };
   }
 
@@ -334,11 +366,12 @@ export interface MaterializeSetResult {
 /**
  * Transaction-owning wrapper for clone-on-use: opens its OWN connection, runs
  * `clonePackToTenant` under the `assessiq_system` role, audits the clone under
- * the app role (two-phase, only when a NEW clone was made), and returns the
+ * the app role (two-phase, when a NEW clone was made or a revoke-archived clone was restored, T-89), and returns the
  * cloned pack id + its levels so the caller can resolve a level selection.
  *
  * Idempotent: a second call for the same (source, target) reuses the existing
- * clone and writes no audit row. Called by 05-assessment-lifecycle
+ * clone and writes no audit row, except that a clone archived by a licence revoke is set back to published,
+ * re-synced and audited as `tenant.pack_resynced` with `unarchived: true` (T-89). Called by 05-assessment-lifecycle
  * `createAssessmentFromSet` when a company assesses from a licensed platform set.
  * The CALLER is responsible for the license check (billing
  * `assertLicensedForSourcePack`) before invoking this.
@@ -371,7 +404,31 @@ export async function materializeSetForTenant(
     ).rows;
 
     // Phase B — audit under the app role + tenant GUC (auditInTx's required
-    // context), only when a NEW clone was materialised (reuse changes nothing).
+    // context), when a NEW clone was materialised or a revoke-archived clone was restored (plain reuse changes nothing).
+    if (result.restored !== undefined) {
+      // T-89: the clone was restored from a revoke archive; audit it as a re-sync with unarchived = true.
+      await client.query("SET LOCAL ROLE assessiq_app");
+      await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId,
+        action: "tenant.pack_resynced",
+        entityType: "question_pack",
+        entityId: result.clonedPackId,
+        after: {
+          source_pack_id: sourcePackId,
+          unarchived: true,
+          from_version: result.restored.fromVersion,
+          to_version: result.restored.toVersion,
+          added: result.restored.added,
+          changed: result.restored.changed,
+          archived: result.restored.archived,
+          skipped: result.restored.skipped,
+          new_pack_version: result.restored.newPackVersion,
+        },
+      });
+    }
     if (!result.reusedExisting) {
       // system read, then tenant-scoped write under assessiq_app in the same tx
       await client.query("SET LOCAL ROLE assessiq_app");

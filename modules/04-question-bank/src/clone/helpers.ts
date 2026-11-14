@@ -17,6 +17,8 @@ export interface ClonePackResult {
   skippedCount: number;
   /** true when an existing clone of this source was reused (idempotent re-grant). */
   reusedExisting: boolean;
+  /** T-89: set when the reused clone had been archived by a licence revoke and was set back to published + re-synced. */
+  restored?: { fromVersion: number; toVersion: number; added: number; changed: number; archived: number; skipped: number; newPackVersion: number };
 }
 
 export interface SourcePackRow {

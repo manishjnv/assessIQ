@@ -632,3 +632,94 @@ describe("T-85 and T-86", () => {
     expect(await tags((await cloneRows(cl.pack)).find((r) => r.source_question_id === n)!.id)).toEqual(want);
   });
 });
+
+describe("T-89: a licensed use restores a clone that a revoke archived", () => {
+  /** What 19-billing revokeEntitlement does to the clone: status archived + one tenant.pack_clone_archived audit row. */
+  const revokeArchive = (tenant: string, user: string, clonePack: string, src: string) => sup(async (c) => {
+    await c.query(`UPDATE question_packs SET status='archived' WHERE id=$1`, [clonePack]);
+    await c.query(`INSERT INTO audit_log (tenant_id, actor_user_id, actor_kind, action, entity_type, entity_id, after) VALUES ($1,$2,'user','tenant.pack_clone_archived','tenant_entitlement',$1,$3::jsonb)`,
+      [tenant, user, JSON.stringify({ scope_type: "pack", scope_id: src, source_pack_ids: [src], archived_clone_ids: [clonePack], archived_count: 1 })]);
+  });
+
+  it("20: revoke archive then a new use: pack is published at the master version, new rows arrive, manual Update works; a second use changes nothing", async () => {
+    const { p } = await mkMaster("sap-20");
+    await materializeSetForTenant(p.pack, tA, uA);
+    const cl = await cloneOf(tA, p.pack);
+    await revokeArchive(tA, uA, cl.pack, p.pack);
+    const n = await importRow(tP, uP, p);
+    await activateQuestionsByIds(superP(), [n]); // master ahead; the push skips the archived clone
+    expect((await cloneRows(cl.pack)).some((r) => r.source_question_id === n)).toBe(false);
+
+    const m = await materializeSetForTenant(p.pack, tA, uA);
+    expect(m).toMatchObject({ clonedPackId: cl.pack, reusedExisting: true, questionCount: 2 });
+    const pr = await packRow(cl.pack);
+    expect(pr.status).toBe("published");
+    expect(pr.source_version).toBe((await packRow(p.pack)).version);
+    expect((await cloneRows(cl.pack)).find((r) => r.source_question_id === n)).toMatchObject({ status: "active" });
+    const au = (await audits(tA, "tenant.pack_resynced", cl.pack)).filter((a) => a.after.unarchived === true);
+    expect(au).toHaveLength(1);
+    expect(au[0].after).toMatchObject({ added: 1 });
+    await expect(resyncSetForTenant(p.pack, tA, uA)).resolves.toMatchObject({ updated: false });
+
+    const fp = await fingerprint();
+    await materializeSetForTenant(p.pack, tA, uA);
+    expect(await fingerprint()).toEqual(fp);
+  });
+
+  it("20b: a revoke-archived clone that is already at the master version also comes back as published", async () => {
+    const { p } = await mkMaster("sap-20b");
+    await materializeSetForTenant(p.pack, tA, uA);
+    const cl = await cloneOf(tA, p.pack);
+    await revokeArchive(tA, uA, cl.pack, p.pack);
+    const m = await materializeSetForTenant(p.pack, tA, uA);
+    expect(m).toMatchObject({ clonedPackId: cl.pack, reusedExisting: true });
+    expect((await packRow(cl.pack)).status).toBe("published");
+    const au = (await audits(tA, "tenant.pack_resynced", cl.pack)).filter((a) => a.after.unarchived === true);
+    expect(au).toHaveLength(1);
+    expect(au[0].after).toMatchObject({ added: 0, changed: 0 });
+  });
+
+  it("20c: one revoke archive is undone once; an archive with no audit row after the restore stays", async () => {
+    const { p } = await mkMaster("sap-20c");
+    await materializeSetForTenant(p.pack, tA, uA);
+    const cl = await cloneOf(tA, p.pack);
+    await revokeArchive(tA, uA, cl.pack, p.pack);
+    await materializeSetForTenant(p.pack, tA, uA);
+    expect((await packRow(cl.pack)).status).toBe("published");
+    await sup((c) => c.query(`UPDATE question_packs SET status='archived' WHERE id=$1`, [cl.pack])); // by SQL, no audit row
+    const fp = await fingerprint();
+    await materializeSetForTenant(p.pack, tA, uA);
+    expect(await fingerprint()).toEqual(fp);
+    expect((await packRow(cl.pack)).status).toBe("archived");
+  });
+
+  it("20d: a revoke archive row of ANOTHER tenant that names this clone id does not restore it", async () => {
+    const { p } = await mkMaster("sap-20d");
+    await materializeSetForTenant(p.pack, tA, uA);
+    const cl = await cloneOf(tA, p.pack);
+    await sup((c) => c.query(`UPDATE question_packs SET status='archived' WHERE id=$1`, [cl.pack]));
+    await sup((c) => c.query(`INSERT INTO audit_log (tenant_id, actor_user_id, actor_kind, action, entity_type, entity_id, after) VALUES ($1,$2,'user','tenant.pack_clone_archived','tenant_entitlement',$1,$3::jsonb)`,
+      [tB, uB, JSON.stringify({ archived_clone_ids: [cl.pack] })]));
+    const fp = await fingerprint();
+    await materializeSetForTenant(p.pack, tA, uA);
+    expect(await fingerprint()).toEqual(fp);
+    expect((await packRow(cl.pack)).status).toBe("archived");
+  });
+
+  it("21: a clone pack archived by hand (no revoke archive, or pack.archived after it) stays archived", async () => {
+    const { p } = await mkMaster("sap-21");
+    await materializeSetForTenant(p.pack, tA, uA);
+    const cl = await cloneOf(tA, p.pack);
+    await sup((c) => c.query(`UPDATE question_packs SET status='archived' WHERE id=$1`, [cl.pack]));
+    let fp = await fingerprint();
+    await materializeSetForTenant(p.pack, tA, uA);
+    expect(await fingerprint()).toEqual(fp);
+
+    await revokeArchive(tA, uA, cl.pack, p.pack);
+    await sup((c) => c.query(`INSERT INTO audit_log (tenant_id, actor_user_id, actor_kind, action, entity_type, entity_id) VALUES ($1,$2,'user','pack.archived','question_pack',$3)`, [tA, uA, cl.pack]));
+    fp = await fingerprint();
+    await materializeSetForTenant(p.pack, tA, uA);
+    expect(await fingerprint()).toEqual(fp);
+    expect((await packRow(cl.pack)).status).toBe("archived");
+  });
+});
